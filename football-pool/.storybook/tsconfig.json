@@ -1,0 +1,19 @@
+{
+  "extends": "../tsconfig.json",
+  "compilerOptions": {
+    "jsx": "react",
+    "isolatedModules": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "allowSyntheticDefaultImports": true
+  },
+  "include": [
+    "../stories/**/*",
+    "../atomic/**/*",
+    "./**/*"
+  ],
+  "exclude": [
+    "../node_modules"
+  ]
+}
+

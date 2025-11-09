@@ -1,7 +1,12 @@
 {
-  "editor.codeActionsOnSave": {
-    "source.fixAll": "explicit",
-    "source.organizeImports": "explicit",
-    "source.sortMembers": "explicit"
-  }
+  "files.associations": {
+    "*.storybook": "typescript"
+  },
+  "search.exclude": {
+    "**/node_modules": true,
+    "**/.rnstorybook/storybook.requires.ts": true,
+    "**/storybook-static": true
+  },
+  "typescript.tsdk": "node_modules/typescript/lib",
+  "typescript.enablePromptUseWorkspaceTsdk": true
 }
