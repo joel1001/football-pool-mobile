@@ -1,0 +1,917 @@
+{
+  "leagues": [
+    {
+      "id": "premier-league",
+      "name": "Premier League",
+      "country": "England"
+    },
+    {
+      "id": "la-liga",
+      "name": "La Liga",
+      "country": "Spain"
+    },
+    {
+      "id": "bundesliga",
+      "name": "Bundesliga",
+      "country": "Germany"
+    },
+    {
+      "id": "serie-a",
+      "name": "Serie A",
+      "country": "Italy"
+    },
+    {
+      "id": "ligue-1",
+      "name": "Ligue 1",
+      "country": "France"
+    },
+    {
+      "id": "champions-league",
+      "name": "UEFA Champions League",
+      "country": "Europe"
+    },
+    {
+      "id": "europa-league",
+      "name": "UEFA Europa League",
+      "country": "Europe"
+    },
+    {
+      "id": "conference-league",
+      "name": "UEFA Conference League",
+      "country": "Europe"
+    },
+    {
+      "id": "liga-mx",
+      "name": "Liga MX",
+      "country": "Mexico"
+    },
+    {
+      "id": "mls",
+      "name": "MLS",
+      "country": "USA"
+    },
+    {
+      "id": "brasileirao",
+      "name": "Brasileirão",
+      "country": "Brazil"
+    },
+    {
+      "id": "primera-division",
+      "name": "Primera División",
+      "country": "Argentina"
+    },
+    {
+      "id": "eredivisie",
+      "name": "Eredivisie",
+      "country": "Netherlands"
+    },
+    {
+      "id": "primeira-liga",
+      "name": "Primeira Liga",
+      "country": "Portugal"
+    },
+    {
+      "id": "super-lig",
+      "name": "Süper Lig",
+      "country": "Turkey"
+    },
+    {
+      "id": "scottish-premiership",
+      "name": "Scottish Premiership",
+      "country": "Scotland"
+    },
+    {
+      "id": "primeira-liga-brazil",
+      "name": "Brasileirão Série B",
+      "country": "Brazil"
+    },
+    {
+      "id": "championship",
+      "name": "EFL Championship",
+      "country": "England"
+    },
+    {
+      "id": "liga-pro-ecuador",
+      "name": "Liga Pro",
+      "country": "Ecuador"
+    },
+    {
+      "id": "primera-division-chile",
+      "name": "Primera División Chile",
+      "country": "Chile"
+    },
+    {
+      "id": "primera-division-costa-rica",
+      "name": "Primera División Costa Rica",
+      "country": "Costa Rica"
+    }
+  ],
+  "teams": [
+    {
+      "id": "man-city",
+      "name": "Manchester City",
+      "league": "premier-league"
+    },
+    {
+      "id": "arsenal",
+      "name": "Arsenal",
+      "league": "premier-league"
+    },
+    {
+      "id": "liverpool",
+      "name": "Liverpool",
+      "league": "premier-league"
+    },
+    {
+      "id": "chelsea",
+      "name": "Chelsea",
+      "league": "premier-league"
+    },
+    {
+      "id": "man-united",
+      "name": "Manchester United",
+      "league": "premier-league"
+    },
+    {
+      "id": "tottenham",
+      "name": "Tottenham",
+      "league": "premier-league"
+    },
+    {
+      "id": "newcastle",
+      "name": "Newcastle United",
+      "league": "premier-league"
+    },
+    {
+      "id": "aston-villa",
+      "name": "Aston Villa",
+      "league": "premier-league"
+    },
+    {
+      "id": "brighton",
+      "name": "Brighton",
+      "league": "premier-league"
+    },
+    {
+      "id": "west-ham",
+      "name": "West Ham United",
+      "league": "premier-league"
+    },
+    {
+      "id": "everton",
+      "name": "Everton",
+      "league": "premier-league"
+    },
+    {
+      "id": "leicester",
+      "name": "Leicester City",
+      "league": "premier-league"
+    },
+    {
+      "id": "wolves",
+      "name": "Wolverhampton",
+      "league": "premier-league"
+    },
+    {
+      "id": "crystal-palace",
+      "name": "Crystal Palace",
+      "league": "premier-league"
+    },
+    {
+      "id": "brentford",
+      "name": "Brentford",
+      "league": "premier-league"
+    },
+    {
+      "id": "fulham",
+      "name": "Fulham",
+      "league": "premier-league"
+    },
+    {
+      "id": "nottingham",
+      "name": "Nottingham Forest",
+      "league": "premier-league"
+    },
+    {
+      "id": "bournemouth",
+      "name": "Bournemouth",
+      "league": "premier-league"
+    },
+    {
+      "id": "luton",
+      "name": "Luton Town",
+      "league": "premier-league"
+    },
+    {
+      "id": "burnley",
+      "name": "Burnley",
+      "league": "premier-league"
+    },
+    {
+      "id": "real-madrid",
+      "name": "Real Madrid",
+      "league": "la-liga"
+    },
+    {
+      "id": "barcelona",
+      "name": "Barcelona",
+      "league": "la-liga"
+    },
+    {
+      "id": "atletico-madrid",
+      "name": "Atlético Madrid",
+      "league": "la-liga"
+    },
+    {
+      "id": "sevilla",
+      "name": "Sevilla",
+      "league": "la-liga"
+    },
+    {
+      "id": "real-sociedad",
+      "name": "Real Sociedad",
+      "league": "la-liga"
+    },
+    {
+      "id": "real-betis",
+      "name": "Real Betis",
+      "league": "la-liga"
+    },
+    {
+      "id": "villarreal",
+      "name": "Villarreal",
+      "league": "la-liga"
+    },
+    {
+      "id": "athletic-bilbao",
+      "name": "Athletic Bilbao",
+      "league": "la-liga"
+    },
+    {
+      "id": "valencia",
+      "name": "Valencia",
+      "league": "la-liga"
+    },
+    {
+      "id": "girona",
+      "name": "Girona",
+      "league": "la-liga"
+    },
+    {
+      "id": "getafe",
+      "name": "Getafe",
+      "league": "la-liga"
+    },
+    {
+      "id": "osasuna",
+      "name": "Osasuna",
+      "league": "la-liga"
+    },
+    {
+      "id": "rayo-vallecano",
+      "name": "Rayo Vallecano",
+      "league": "la-liga"
+    },
+    {
+      "id": "celta-vigo",
+      "name": "Celta Vigo",
+      "league": "la-liga"
+    },
+    {
+      "id": "mallorca",
+      "name": "Mallorca",
+      "league": "la-liga"
+    },
+    {
+      "id": "las-palmas",
+      "name": "Las Palmas",
+      "league": "la-liga"
+    },
+    {
+      "id": "alaves",
+      "name": "Alavés",
+      "league": "la-liga"
+    },
+    {
+      "id": "cadiz",
+      "name": "Cádiz",
+      "league": "la-liga"
+    },
+    {
+      "id": "almeria",
+      "name": "Almería",
+      "league": "la-liga"
+    },
+    {
+      "id": "granada",
+      "name": "Granada",
+      "league": "la-liga"
+    },
+    {
+      "id": "bayern-munich",
+      "name": "Bayern Munich",
+      "league": "bundesliga"
+    },
+    {
+      "id": "dortmund",
+      "name": "Borussia Dortmund",
+      "league": "bundesliga"
+    },
+    {
+      "id": "rb-leipzig",
+      "name": "RB Leipzig",
+      "league": "bundesliga"
+    },
+    {
+      "id": "leverkusen",
+      "name": "Bayer Leverkusen",
+      "league": "bundesliga"
+    },
+    {
+      "id": "union-berlin",
+      "name": "Union Berlin",
+      "league": "bundesliga"
+    },
+    {
+      "id": "freiburg",
+      "name": "Freiburg",
+      "league": "bundesliga"
+    },
+    {
+      "id": "eintracht",
+      "name": "Eintracht Frankfurt",
+      "league": "bundesliga"
+    },
+    {
+      "id": "wolfsburg",
+      "name": "Wolfsburg",
+      "league": "bundesliga"
+    },
+    {
+      "id": "monchengladbach",
+      "name": "Borussia Mönchengladbach",
+      "league": "bundesliga"
+    },
+    {
+      "id": "mainz",
+      "name": "Mainz 05",
+      "league": "bundesliga"
+    },
+    {
+      "id": "hoffenheim",
+      "name": "Hoffenheim",
+      "league": "bundesliga"
+    },
+    {
+      "id": "cologne",
+      "name": "FC Köln",
+      "league": "bundesliga"
+    },
+    {
+      "id": "augsburg",
+      "name": "Augsburg",
+      "league": "bundesliga"
+    },
+    {
+      "id": "stuttgart",
+      "name": "VfB Stuttgart",
+      "league": "bundesliga"
+    },
+    {
+      "id": "bochum",
+      "name": "VfL Bochum",
+      "league": "bundesliga"
+    },
+    {
+      "id": "werder-bremen",
+      "name": "Werder Bremen",
+      "league": "bundesliga"
+    },
+    {
+      "id": "heidenheim",
+      "name": "Heidenheim",
+      "league": "bundesliga"
+    },
+    {
+      "id": "darmstadt",
+      "name": "Darmstadt",
+      "league": "bundesliga"
+    },
+    {
+      "id": "inter",
+      "name": "Inter Milan",
+      "league": "serie-a"
+    },
+    {
+      "id": "ac-milan",
+      "name": "AC Milan",
+      "league": "serie-a"
+    },
+    {
+      "id": "juventus",
+      "name": "Juventus",
+      "league": "serie-a"
+    },
+    {
+      "id": "napoli",
+      "name": "Napoli",
+      "league": "serie-a"
+    },
+    {
+      "id": "roma",
+      "name": "AS Roma",
+      "league": "serie-a"
+    },
+    {
+      "id": "lazio",
+      "name": "Lazio",
+      "league": "serie-a"
+    },
+    {
+      "id": "atalanta",
+      "name": "Atalanta",
+      "league": "serie-a"
+    },
+    {
+      "id": "fiorentina",
+      "name": "Fiorentina",
+      "league": "serie-a"
+    },
+    {
+      "id": "bologna",
+      "name": "Bologna",
+      "league": "serie-a"
+    },
+    {
+      "id": "torino",
+      "name": "Torino",
+      "league": "serie-a"
+    },
+    {
+      "id": "udinese",
+      "name": "Udinese",
+      "league": "serie-a"
+    },
+    {
+      "id": "monza",
+      "name": "Monza",
+      "league": "serie-a"
+    },
+    {
+      "id": "genoa",
+      "name": "Genoa",
+      "league": "serie-a"
+    },
+    {
+      "id": "lecce",
+      "name": "Lecce",
+      "league": "serie-a"
+    },
+    {
+      "id": "verona",
+      "name": "Hellas Verona",
+      "league": "serie-a"
+    },
+    {
+      "id": "sassuolo",
+      "name": "Sassuolo",
+      "league": "serie-a"
+    },
+    {
+      "id": "empoli",
+      "name": "Empoli",
+      "league": "serie-a"
+    },
+    {
+      "id": "frosinone",
+      "name": "Frosinone",
+      "league": "serie-a"
+    },
+    {
+      "id": "cagliari",
+      "name": "Cagliari",
+      "league": "serie-a"
+    },
+    {
+      "id": "salernitana",
+      "name": "Salernitana",
+      "league": "serie-a"
+    },
+    {
+      "id": "psg",
+      "name": "Paris Saint-Germain",
+      "league": "ligue-1"
+    },
+    {
+      "id": "marseille",
+      "name": "Marseille",
+      "league": "ligue-1"
+    },
+    {
+      "id": "lyon",
+      "name": "Lyon",
+      "league": "ligue-1"
+    },
+    {
+      "id": "monaco",
+      "name": "AS Monaco",
+      "league": "ligue-1"
+    },
+    {
+      "id": "lille",
+      "name": "Lille",
+      "league": "ligue-1"
+    },
+    {
+      "id": "nice",
+      "name": "Nice",
+      "league": "ligue-1"
+    },
+    {
+      "id": "lens",
+      "name": "Lens",
+      "league": "ligue-1"
+    },
+    {
+      "id": "rennes",
+      "name": "Rennes",
+      "league": "ligue-1"
+    },
+    {
+      "id": "brest",
+      "name": "Brest",
+      "league": "ligue-1"
+    },
+    {
+      "id": "strasbourg",
+      "name": "Strasbourg",
+      "league": "ligue-1"
+    },
+    {
+      "id": "reims",
+      "name": "Reims",
+      "league": "ligue-1"
+    },
+    {
+      "id": "montpellier",
+      "name": "Montpellier",
+      "league": "ligue-1"
+    },
+    {
+      "id": "nantes",
+      "name": "Nantes",
+      "league": "ligue-1"
+    },
+    {
+      "id": "toulouse",
+      "name": "Toulouse",
+      "league": "ligue-1"
+    },
+    {
+      "id": "le-havre",
+      "name": "Le Havre",
+      "league": "ligue-1"
+    },
+    {
+      "id": "metz",
+      "name": "Metz",
+      "league": "ligue-1"
+    },
+    {
+      "id": "lorient",
+      "name": "Lorient",
+      "league": "ligue-1"
+    },
+    {
+      "id": "clermont",
+      "name": "Clermont",
+      "league": "ligue-1"
+    },
+    {
+      "id": "america",
+      "name": "Club América",
+      "league": "liga-mx"
+    },
+    {
+      "id": "chivas",
+      "name": "Chivas Guadalajara",
+      "league": "liga-mx"
+    },
+    {
+      "id": "cruz-azul",
+      "name": "Cruz Azul",
+      "league": "liga-mx"
+    },
+    {
+      "id": "pumas",
+      "name": "Pumas UNAM",
+      "league": "liga-mx"
+    },
+    {
+      "id": "tigres",
+      "name": "Tigres UANL",
+      "league": "liga-mx"
+    },
+    {
+      "id": "monterrey",
+      "name": "Monterrey",
+      "league": "liga-mx"
+    },
+    {
+      "id": "santos-laguna",
+      "name": "Santos Laguna",
+      "league": "liga-mx"
+    },
+    {
+      "id": "leon",
+      "name": "León",
+      "league": "liga-mx"
+    },
+    {
+      "id": "toluca",
+      "name": "Toluca",
+      "league": "liga-mx"
+    },
+    {
+      "id": "atlas",
+      "name": "Atlas",
+      "league": "liga-mx"
+    },
+    {
+      "id": "pachuca",
+      "name": "Pachuca",
+      "league": "liga-mx"
+    },
+    {
+      "id": "necaxa",
+      "name": "Necaxa",
+      "league": "liga-mx"
+    },
+    {
+      "id": "puebla",
+      "name": "Puebla",
+      "league": "liga-mx"
+    },
+    {
+      "id": "tijuana",
+      "name": "Club Tijuana",
+      "league": "liga-mx"
+    },
+    {
+      "id": "mazatlan",
+      "name": "Mazatlán FC",
+      "league": "liga-mx"
+    },
+    {
+      "id": "queretaro",
+      "name": "Querétaro",
+      "league": "liga-mx"
+    },
+    {
+      "id": "juarez",
+      "name": "FC Juárez",
+      "league": "liga-mx"
+    },
+    {
+      "id": "san-luis",
+      "name": "Atlético San Luis",
+      "league": "liga-mx"
+    },
+    {
+      "id": "lafc",
+      "name": "Los Angeles FC",
+      "league": "mls"
+    },
+    {
+      "id": "la-galaxy",
+      "name": "LA Galaxy",
+      "league": "mls"
+    },
+    {
+      "id": "inter-miami",
+      "name": "Inter Miami",
+      "league": "mls"
+    },
+    {
+      "id": "atlanta-united",
+      "name": "Atlanta United",
+      "league": "mls"
+    },
+    {
+      "id": "seattle-sounders",
+      "name": "Seattle Sounders",
+      "league": "mls"
+    },
+    {
+      "id": "portland-timbers",
+      "name": "Portland Timbers",
+      "league": "mls"
+    },
+    {
+      "id": "austin-fc",
+      "name": "Austin FC",
+      "league": "mls"
+    },
+    {
+      "id": "nashville-sc",
+      "name": "Nashville SC",
+      "league": "mls"
+    },
+    {
+      "id": "cincinnati",
+      "name": "FC Cincinnati",
+      "league": "mls"
+    },
+    {
+      "id": "columbus-crew",
+      "name": "Columbus Crew",
+      "league": "mls"
+    },
+    {
+      "id": "nycfc",
+      "name": "New York City FC",
+      "league": "mls"
+    },
+    {
+      "id": "ny-red-bulls",
+      "name": "New York Red Bulls",
+      "league": "mls"
+    },
+    {
+      "id": "philadelphia",
+      "name": "Philadelphia Union",
+      "league": "mls"
+    },
+    {
+      "id": "charlotte-fc",
+      "name": "Charlotte FC",
+      "league": "mls"
+    },
+    {
+      "id": "orlando-city",
+      "name": "Orlando City",
+      "league": "mls"
+    },
+    {
+      "id": "flamengo",
+      "name": "Flamengo",
+      "league": "brasileirao"
+    },
+    {
+      "id": "palmeiras",
+      "name": "Palmeiras",
+      "league": "brasileirao"
+    },
+    {
+      "id": "corinthians",
+      "name": "Corinthians",
+      "league": "brasileirao"
+    },
+    {
+      "id": "sao-paulo",
+      "name": "São Paulo",
+      "league": "brasileirao"
+    },
+    {
+      "id": "atletico-mineiro",
+      "name": "Atlético Mineiro",
+      "league": "brasileirao"
+    },
+    {
+      "id": "internacional",
+      "name": "Internacional",
+      "league": "brasileirao"
+    },
+    {
+      "id": "gremio",
+      "name": "Grêmio",
+      "league": "brasileirao"
+    },
+    {
+      "id": "botafogo",
+      "name": "Botafogo",
+      "league": "brasileirao"
+    },
+    {
+      "id": "santos",
+      "name": "Santos",
+      "league": "brasileirao"
+    },
+    {
+      "id": "fluminense",
+      "name": "Fluminense",
+      "league": "brasileirao"
+    },
+    {
+      "id": "athletico-paranaense",
+      "name": "Athletico Paranaense",
+      "league": "brasileirao"
+    },
+    {
+      "id": "fortaleza",
+      "name": "Fortaleza",
+      "league": "brasileirao"
+    },
+    {
+      "id": "boca",
+      "name": "Boca Juniors",
+      "league": "primera-division"
+    },
+    {
+      "id": "river",
+      "name": "River Plate",
+      "league": "primera-division"
+    },
+    {
+      "id": "racing",
+      "name": "Racing Club",
+      "league": "primera-division"
+    },
+    {
+      "id": "independiente",
+      "name": "Independiente",
+      "league": "primera-division"
+    },
+    {
+      "id": "san-lorenzo",
+      "name": "San Lorenzo",
+      "league": "primera-division"
+    },
+    {
+      "id": "estudiantes",
+      "name": "Estudiantes",
+      "league": "primera-division"
+    },
+    {
+      "id": "velez",
+      "name": "Vélez Sarsfield",
+      "league": "primera-division"
+    },
+    {
+      "id": "newells",
+      "name": "Newell's Old Boys",
+      "league": "primera-division"
+    },
+    {
+      "id": "saprissa",
+      "name": "Deportivo Saprissa",
+      "league": "primera-division-costa-rica"
+    },
+    {
+      "id": "alajuelense",
+      "name": "LD Alajuelense",
+      "league": "primera-division-costa-rica"
+    },
+    {
+      "id": "herediano",
+      "name": "CS Herediano",
+      "league": "primera-division-costa-rica"
+    },
+    {
+      "id": "cartagines",
+      "name": "CS Cartaginés",
+      "league": "primera-division-costa-rica"
+    },
+    {
+      "id": "san-carlos",
+      "name": "AD San Carlos",
+      "league": "primera-division-costa-rica"
+    },
+    {
+      "id": "sporting-fc",
+      "name": "Sporting FC",
+      "league": "primera-division-costa-rica"
+    },
+    {
+      "id": "santos-guapiles",
+      "name": "Santos de Guápiles",
+      "league": "primera-division-costa-rica"
+    },
+    {
+      "id": "perez-zeledon",
+      "name": "Pérez Zeledón",
+      "league": "primera-division-costa-rica"
+    },
+    {
+      "id": "grecia",
+      "name": "Grecia",
+      "league": "primera-division-costa-rica"
+    },
+    {
+      "id": "guanacasteca",
+      "name": "AD Guanacasteca",
+      "league": "primera-division-costa-rica"
+    },
+    {
+      "id": "puntarenas",
+      "name": "Puntarenas FC",
+      "league": "primera-division-costa-rica"
+    },
+    {
+      "id": "liberia",
+      "name": "Municipal Liberia",
+      "league": "primera-division-costa-rica"
+    }
+  ]
+}
+

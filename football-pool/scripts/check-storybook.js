@@ -6,9 +6,6 @@
 
 const fs = require('fs');
 const path = require('path');
-
-console.log('🔍 Verificando configuración de Storybook...\n');
-
 const checks = [];
 
 // 1. Verificar archivos de configuración Web

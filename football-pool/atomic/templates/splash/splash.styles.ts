@@ -10,14 +10,13 @@ export const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   
-  // Gradientes simulados con overlays
   gradientOverlay: {
     position: 'absolute',
     top: 0,
     left: 0,
     right: 0,
     height: height * 0.5,
-    backgroundColor: 'rgba(37, 99, 235, 0.15)', // Azul suave
+    backgroundColor: 'rgba(37, 99, 235, 0.15)',
   },
   gradientOverlay2: {
     position: 'absolute',
@@ -25,7 +24,7 @@ export const styles = StyleSheet.create({
     left: 0,
     right: 0,
     height: height * 0.5,
-    backgroundColor: 'rgba(168, 85, 247, 0.1)', // Morado suave
+    backgroundColor: 'rgba(168, 85, 247, 0.1)',
   },
   
   content: {
@@ -34,7 +33,6 @@ export const styles = StyleSheet.create({
     zIndex: 10,
   },
   
-  // Logo con efecto glow
   logoContainer: {
     position: 'relative',
     alignItems: 'center',
@@ -76,7 +74,6 @@ export const styles = StyleSheet.create({
     }),
   },
   
-  // App Name con estilo moderno
   appName: {
     fontSize: 36,
     fontWeight: '800',
@@ -98,7 +95,6 @@ export const styles = StyleSheet.create({
     }),
   },
   
-  // Línea decorativa bajo el título
   underline: {
     width: 80,
     height: 4,
@@ -116,7 +112,6 @@ export const styles = StyleSheet.create({
     }),
   },
   
-  // Loader container
   loaderContainer: {
     marginTop: 40,
     alignItems: 'center',
@@ -133,7 +128,6 @@ export const styles = StyleSheet.create({
     textTransform: 'uppercase',
   },
   
-  // Círculos decorativos flotantes
   decorCircle1: {
     position: 'absolute',
     top: height * 0.1,

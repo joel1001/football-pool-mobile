@@ -5,18 +5,32 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "footballpool",
+    "scheme": "football-pool",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
+    "facebookScheme": "fb764260709993014",
+    "facebookAppId": "764260709993014",
+    "facebookDisplayName": "Football Pool",
     "splash": {
       "image": "./assets/football-pool.png",
       "resizeMode": "contain",
       "backgroundColor": "#00B894"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.footballpool.app",
+      "infoPlist": {
+        "CFBundleURLTypes": [
+          {
+            "CFBundleURLSchemes": ["fb764260709993014", "football-pool"]
+          }
+        ],
+        "FacebookAppID": "764260709993014",
+        "FacebookDisplayName": "Football Pool"
+      }
     },
     "android": {
+      "package": "com.footballpool.app",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
@@ -24,7 +38,18 @@
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "data": [
+            {
+              "scheme": "football-pool"
+            }
+          ],
+          "category": ["BROWSABLE", "DEFAULT"]
+        }
+      ]
     },
     "web": {
       "output": "static",

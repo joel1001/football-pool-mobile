@@ -9,7 +9,6 @@ export const Splash: React.FC<SplashProps> = ({
   backgroundColor = '#1a1a1a',
   appName = 'Football Pool',
 }) => {
-  // Animaciones usando Animated API (compatible con web)
   const logoOpacity = useRef(new Animated.Value(0)).current;
   const logoScale = useRef(new Animated.Value(0.3)).current;
   const logoRotate = useRef(new Animated.Value(0)).current;
