@@ -1,0 +1,44 @@
+# CompetitionCard Component
+
+## Descripción
+Componente de tarjeta (Card) que representa una competición de fútbol. Muestra un emoji distintivo, el nombre corto de la competición y información adicional como región o país.
+
+## Tipo
+Molécula (Molecule) - Componente compuesto por átomos básicos
+
+## Props
+- id: string (requerido) - Identificador único de la competición
+- name: string (requerido) - Nombre completo de la competición
+- shortName: string (requerido) - Nombre corto para mostrar
+- region?: string (opcional) - Región de la competición (ej: "UEFA", "CONMEBOL")
+- country?: string (opcional) - País de la competición
+- emoji?: string (opcional) - Emoji representativo (default: "⚽")
+- color?: string (opcional) - Color de fondo de la tarjeta (default: "#3B82F6")
+- onPress?: (id: string) => void (opcional) - Función callback al presionar la tarjeta
+- style?: StyleProp<ViewStyle> (opcional) - Estilos adicionales
+
+## Uso
+```tsx
+import { CompetitionCard } from '@/atomic';
+
+<CompetitionCard
+  id="world-cup"
+  name="Copa Mundial FIFA"
+  shortName="Mundial"
+  region="Global"
+  emoji="🏆"
+  color="#3B82F6"
+  onPress={(id) => console.log(id)}
+/>
+```
+
+## Características
+- Diseño moderno con sombras y bordes redondeados
+- Soporte táctil con feedback visual
+- Dimensiones fijas (160x200) para consistencia en carruseles
+- Truncamiento de texto automático
+- Colores personalizables por competición
+
+## Dependencias
+- React Native (View, Text, TouchableOpacity)
+

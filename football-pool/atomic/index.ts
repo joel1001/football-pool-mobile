@@ -8,14 +8,12 @@
 export * from './templates/splash';
 
 // Organisms
-// Agrega aquí tus organismos cuando los crees
-// export * from './organisms/header';
+export * from './organisms/competition-carousel';
 
 // Molecules
-// Agrega aquí tus moléculas cuando las crees
-// export * from './molecules/form-field';
+export * from './molecules/competition-card';
+export * from './molecules/search-bar';
 
 // Atoms
-// Agrega aquí tus átomos cuando los crees
-// export * from './atoms/button';
+export * from './atoms/animated-background';
 

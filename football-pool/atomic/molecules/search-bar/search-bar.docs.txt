@@ -1,0 +1,48 @@
+# SearchBar Component
+
+## Descripción
+Componente de barra de búsqueda con icono de lupa, input de texto y botón de limpiar. Diseñado para filtrar y buscar competiciones.
+
+## Tipo
+Molécula (Molecule) - Componente de búsqueda interactivo
+
+## Props
+- value: string (requerido) - Valor actual del input
+- onChangeText: (text: string) => void (requerido) - Callback cuando cambia el texto
+- placeholder?: string (opcional) - Texto placeholder (default: "Buscar competiciones...")
+- onClear?: () => void (opcional) - Callback adicional al limpiar
+- style?: StyleProp<ViewStyle> (opcional) - Estilos adicionales
+- ...TextInputProps - Todas las props de TextInput
+
+## Uso
+```tsx
+import { SearchBar } from '@/atomic';
+
+const [searchQuery, setSearchQuery] = useState('');
+
+<SearchBar
+  value={searchQuery}
+  onChangeText={setSearchQuery}
+  placeholder="Buscar competiciones..."
+/>
+```
+
+## Características
+- Icono de búsqueda (🔍) a la izquierda
+- Input de texto flexible
+- Botón de limpiar (✕) que aparece solo cuando hay texto
+- Diseño con sombra y bordes redondeados
+- Feedback visual al interactuar
+- Auto-corrección desactivada para búsquedas precisas
+- Return key type "search"
+
+## Estilos
+- Fondo blanco con sombra sutil
+- Bordes redondeados (12px)
+- Padding horizontal (16px) y vertical (12px)
+- Margen superior (60px) para safe area
+- Margen horizontal (20px) consistente con el diseño
+
+## Dependencias
+- React Native (View, TextInput, Text, TouchableOpacity)
+

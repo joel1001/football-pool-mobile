@@ -1,4 +1,4 @@
-import { Tabs } from "expo-router";
+import { Stack } from "expo-router";
 import React, { useState, useEffect } from "react";
 import { Splash } from "@/atomic";
 import { useAppContext } from "@/context/app-context";
@@ -17,27 +17,18 @@ export default function TabLayout() {
   const whatToDisplayDependingAuth = () => {
     return(
       localData.isAuthenticated ? (
-        <Tabs
+        <Stack
           screenOptions={{
-            tabBarActiveTintColor: "light",
             headerShown: false,
           }}
         >
-          <Tabs.Screen
+          <Stack.Screen
             name="index"
             options={{
               title: "Home",
-              tabBarIcon: ({ color }) => <></>,
             }}
           />
-          {/* <Tabs.Screen
-            name="explore"
-            options={{
-              title: 'Explore',
-              tabBarIcon: ({ color }) => <IconSymbol size={28} name="paperplane.fill" color={color} />,
-            }}
-          /> */}
-        </Tabs>)
+        </Stack>)
       :
       (
         <Login />

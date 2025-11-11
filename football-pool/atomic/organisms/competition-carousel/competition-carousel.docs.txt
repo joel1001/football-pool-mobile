@@ -1,0 +1,69 @@
+# CompetitionCarousel Component
+
+## Descripción
+Componente de carrusel horizontal que muestra múltiples tarjetas de competiciones. Permite desplazamiento horizontal suave para navegar entre diferentes competiciones.
+
+## Tipo
+Organismo (Organism) - Componente complejo compuesto por moléculas y átomos
+
+## Props
+- title: string (requerido) - Título del carrusel que se muestra en el encabezado
+- data: CompetitionCardProps[] (requerido) - Array de objetos con datos de competiciones
+- onPressCard?: (id: string) => void (opcional) - Función callback al presionar una tarjeta
+- style?: StyleProp<ViewStyle> (opcional) - Estilos adicionales para el contenedor
+
+## Uso
+```tsx
+import { CompetitionCarousel } from '@/atomic';
+import competitionsData from '@/context/mocks/competitions-data.json';
+
+<CompetitionCarousel
+  title="🏆 Copas FIFA Selecciones"
+  data={competitionsData.fifaNationalTeamCups}
+  onPressCard={(id) => console.log('Selected:', id)}
+/>
+```
+
+## Características
+- Scroll horizontal suave y natural
+- Oculta la barra de desplazamiento para una apariencia limpia
+- Padding horizontal consistente (20px)
+- Espaciado entre tarjetas (16px margen derecho)
+- Tipografía bold y grande para los títulos (24px)
+- Margen inferior entre carruseles (32px)
+
+## Componentes Internos
+- CompetitionCard: Renderiza cada tarjeta de competición
+- ScrollView: Maneja el desplazamiento horizontal
+- View: Contenedor principal y encabezado
+- Text: Título del carrusel
+
+## Estructura de Datos
+Cada elemento en el array `data` debe tener:
+```typescript
+{
+  id: string;
+  name: string;
+  shortName: string;
+  region?: string;
+  country?: string;
+  emoji?: string;
+  color?: string;
+}
+```
+
+## Layout
+```
+┌─────────────────────────────────┐
+│  TÍTULO DEL CARRUSEL            │
+│                                 │
+│  ┌─────┐ ┌─────┐ ┌─────┐       │
+│  │Card │ │Card │ │Card │  →    │
+│  └─────┘ └─────┘ └─────┘       │
+└─────────────────────────────────┘
+```
+
+## Dependencias
+- React Native (View, Text, ScrollView)
+- CompetitionCard (molécula)
+
