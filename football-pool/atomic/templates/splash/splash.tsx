@@ -6,8 +6,8 @@ import { SplashProps } from './splash.types';
 export const Splash: React.FC<SplashProps> = ({
   logoSource = require('../../../assets/images/football-pool.png'),
   showLoading = true,
-  backgroundColor = '#1a1a1a',
-  appName = 'Football Pool',
+  backgroundColor = '#1A4D3A',
+  appName = '',
 }) => {
   const logoOpacity = useRef(new Animated.Value(0)).current;
   const logoScale = useRef(new Animated.Value(0.3)).current;
@@ -80,9 +80,6 @@ export const Splash: React.FC<SplashProps> = ({
 
   return (
     <View style={[styles.container, { backgroundColor }]}>
-      <View style={styles.gradientOverlay} />
-      <View style={styles.gradientOverlay2} />
-      
       <View style={styles.content}>
         <Animated.View 
           style={[
@@ -125,17 +122,19 @@ export const Splash: React.FC<SplashProps> = ({
           >
             <ActivityIndicator 
               size="large" 
-              color="#ffffff" 
+              color="#E8F5E9" 
               style={styles.loader}
             />
-            <Text style={styles.loadingText}>Loading...</Text>
+            <Text style={styles.loadingText}>Cargando...</Text>
           </Animated.View>
         )}
       </View>
 
-      <View style={styles.decorCircle1} />
-      <View style={styles.decorCircle2} />
-      <View style={styles.decorCircle3} />
+      {/* Football field elements - subtle like animated backgrounds */}
+      <View style={styles.cornerArc1} />
+      <View style={styles.cornerArc2} />
+      <View style={styles.cornerArc3} />
+      <View style={styles.cornerArc4} />
     </View>
   );
 };

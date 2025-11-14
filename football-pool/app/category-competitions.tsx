@@ -1,38 +1,91 @@
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { useState, useEffect } from 'react';
 import { CompetitionCard } from '@/atomic';
-import competitionsData from '@/context/mocks/competitions-data.json';
+import { getCompetitionsByCategory } from '@/services/competitions';
+import { Competition } from '@/services/competitions/competition-types';
 
 export default function CategoryCompetitionsScreen() {
   const params = useLocalSearchParams();
   const router = useRouter();
   const { category, title } = params;
+  
+  const [competitions, setCompetitions] = useState<Competition[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  // Obtener datos según la categoría
-  const getCategoryData = () => {
-    switch (category) {
-      case 'fifaNationalTeamCups':
-        return competitionsData.fifaNationalTeamCups;
-      case 'fifaOfficialClubCups':
-        return competitionsData.fifaOfficialClubCups;
-      case 'nationalClubLeagues':
-        return competitionsData.nationalClubLeagues;
-      default:
-        return [];
+  useEffect(() => {
+    loadCategoryCompetitions();
+  }, [category]);
+
+  const loadCategoryCompetitions = async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
+      const data = await getCompetitionsByCategory(
+        category as 'fifaNationalTeamCups' | 'fifaOfficialClubCups' | 'nationalClubLeagues'
+      );
+      setCompetitions(data);
+    } catch (err: any) {
+      console.error('Error loading category competitions:', err);
+      setError(err.response?.data?.error || 'Error al cargar competiciones');
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  const competitions = getCategoryData();
-
   const handleCardPress = (id: string) => {
     console.log('Competition selected:', id);
-    // Aquí puedes navegar a detalles específicos de la competición
     router.push({
       pathname: '/competition-details',
-      params: { id },
+      params: { id, category },
     });
   };
+
+  if (isLoading) {
+    return (
+      <View style={styles.container}>
+        <View style={styles.header}>
+          <TouchableOpacity
+            onPress={() => router.back()}
+            style={styles.backButton}
+          >
+            <Ionicons name="arrow-back" size={24} color="#11181C" />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>{title as string}</Text>
+          <View style={styles.placeholder} />
+        </View>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#1A4D3A" />
+          <Text style={styles.loadingText}>Cargando...</Text>
+        </View>
+      </View>
+    );
+  }
+
+  if (error) {
+    return (
+      <View style={styles.container}>
+        <View style={styles.header}>
+          <TouchableOpacity
+            onPress={() => router.back()}
+            style={styles.backButton}
+          >
+            <Ionicons name="arrow-back" size={24} color="#11181C" />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>{title as string}</Text>
+          <View style={styles.placeholder} />
+        </View>
+        <View style={styles.errorContainer}>
+          <Text style={styles.errorText}>{error}</Text>
+          <TouchableOpacity onPress={loadCategoryCompetitions} style={styles.retryButton}>
+            <Text style={styles.retryText}>Reintentar</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
@@ -57,8 +110,11 @@ export default function CategoryCompetitionsScreen() {
               shortName={comp.shortName}
               region={comp.region}
               country={comp.country}
-              icon={comp.icon}
-              color={comp.color}
+              image={comp.image}
+              poolAvailableDay={comp.poolAvailableDay}
+              poolaAvailableDay={comp.poolaAvailableDay}
+              poolDisabledDate={comp.poolDisabledDate}
+              poolDisbaledDate={comp.poolDisbaledDate}
               onPress={handleCardPress}
               style={styles.card}
             />
@@ -117,6 +173,40 @@ const styles = StyleSheet.create({
   card: {
     marginRight: 0,
     marginBottom: 16,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    marginTop: 16,
+    fontSize: 16,
+    color: '#687076',
+    fontWeight: '600',
+  },
+  errorContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 40,
+  },
+  errorText: {
+    fontSize: 16,
+    color: '#687076',
+    textAlign: 'center',
+    marginBottom: 20,
+  },
+  retryButton: {
+    backgroundColor: '#1A4D3A',
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 8,
+  },
+  retryText: {
+    fontSize: 16,
+    color: '#fff',
+    fontWeight: '700',
   },
 });
 

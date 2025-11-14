@@ -7,7 +7,9 @@
       "type": "national-team",
       "frequency": "4 años",
       "icon": "trophy",
-      "color": "#3B82F6"
+      "color": "#3B82F6",
+      "poolAvailableDay": "2025-11-23T00:00:00.000Z",
+      "poolDisabledDate": "2025-12-08T23:59:59.999Z"
     },
     {
       "id": "euro-cup",
@@ -17,7 +19,9 @@
       "type": "national-team",
       "frequency": "4 años",
       "icon": "trophy",
-      "color": "#003399"
+      "color": "#003399",
+      "poolAvailableDay": "2025-11-15T00:00:00.000Z",
+      "poolDisabledDate": "2025-11-30T23:59:59.999Z"
     },
     {
       "id": "copa-america",
@@ -27,7 +31,9 @@
       "type": "national-team",
       "frequency": "4 años",
       "icon": "trophy",
-      "color": "#0033A0"
+      "color": "#0033A0",
+      "poolAvailableDay": "2025-11-05T00:00:00.000Z",
+      "poolDisabledDate": "2025-11-20T23:59:59.999Z"
     },
     {
       "id": "gold-cup",
@@ -37,7 +43,9 @@
       "type": "national-team",
       "frequency": "2 años",
       "icon": "trophy",
-      "color": "#FFD700"
+      "color": "#FFD700",
+      "poolAvailableDay": "2025-12-20T00:00:00.000Z",
+      "poolDisabledDate": "2026-01-04T23:59:59.999Z"
     },
     {
       "id": "africa-cup",
@@ -47,7 +55,9 @@
       "type": "national-team",
       "frequency": "2 años",
       "icon": "trophy",
-      "color": "#228B22"
+      "color": "#228B22",
+      "poolAvailableDay": "2026-06-15T00:00:00.000Z",
+      "poolDisabledDate": "2026-08-30T23:59:59.999Z"
     },
     {
       "id": "asian-cup",
@@ -57,7 +67,9 @@
       "type": "national-team",
       "frequency": "4 años",
       "icon": "trophy",
-      "color": "#DC143C"
+      "color": "#DC143C",
+      "poolAvailableDay": "2025-12-05T00:00:00.000Z",
+      "poolDisabledDate": "2025-12-20T23:59:59.999Z"
     },
     {
       "id": "oceania-cup",
@@ -67,7 +79,9 @@
       "type": "national-team",
       "frequency": "4 años",
       "icon": "trophy",
-      "color": "#00CED1"
+      "color": "#00CED1",
+      "poolAvailableDay": "Monday",
+      "poolDisabledDate": null
     }
   ],
   "fifaOfficialClubCups": [
@@ -78,7 +92,9 @@
       "type": "club",
       "frequency": "Anual",
       "icon": "trophy",
-      "color": "#326295"
+      "color": "#326295",
+      "poolAvailableDay": "Monday",
+      "poolDisabledDate": null
     },
     {
       "id": "intercontinental-cup",
@@ -87,7 +103,9 @@
       "type": "club",
       "frequency": "Anual",
       "icon": "trophy",
-      "color": "#1E4D8B"
+      "color": "#1E4D8B",
+      "poolAvailableDay": "Monday",
+      "poolDisabledDate": null
     },
     {
       "id": "champions-league",
@@ -97,7 +115,9 @@
       "type": "club",
       "frequency": "Anual",
       "icon": "star",
-      "color": "#00539F"
+      "color": "#00539F",
+      "poolAvailableDay": "2025-11-05T00:00:00.000Z",
+      "poolDisabledDate": "2025-11-20T23:59:59.999Z"
     },
     {
       "id": "europa-league",
@@ -107,7 +127,9 @@
       "type": "club",
       "frequency": "Anual",
       "icon": "medal",
-      "color": "#FF6600"
+      "color": "#FF6600",
+      "poolAvailableDay": "2025-10-20T00:00:00.000Z",
+      "poolDisabledDate": "2025-11-05T23:59:59.999Z"
     },
     {
       "id": "conference-league",
@@ -117,7 +139,9 @@
       "type": "club",
       "frequency": "Anual",
       "icon": "ribbon",
-      "color": "#7FBA00"
+      "color": "#7FBA00",
+      "poolAvailableDay": "Monday",
+      "poolDisabledDate": null
     },
     {
       "id": "copa-libertadores",
@@ -127,7 +151,9 @@
       "type": "club",
       "frequency": "Anual",
       "icon": "trophy",
-      "color": "#004A8F"
+      "color": "#004A8F",
+      "poolAvailableDay": "Monday",
+      "poolDisabledDate": null
     },
     {
       "id": "concacaf-champions",
@@ -137,7 +163,9 @@
       "type": "club",
       "frequency": "Anual",
       "icon": "trophy",
-      "color": "#003DA5"
+      "color": "#003DA5",
+      "poolAvailableDay": "Monday",
+      "poolDisabledDate": null
     },
     {
       "id": "central-american-cup",
@@ -147,7 +175,9 @@
       "type": "club",
       "frequency": "Anual",
       "icon": "trophy",
-      "color": "#009639"
+      "color": "#009639",
+      "poolAvailableDay": "Monday",
+      "poolDisabledDate": null
     },
     {
       "id": "afc-champions-elite",
@@ -157,7 +187,9 @@
       "type": "club",
       "frequency": "Anual",
       "icon": "trophy",
-      "color": "#DC143C"
+      "color": "#DC143C",
+      "poolAvailableDay": "Monday",
+      "poolDisabledDate": null
     },
     {
       "id": "caf-champions",
@@ -167,7 +199,9 @@
       "type": "club",
       "frequency": "Anual",
       "icon": "trophy",
-      "color": "#228B22"
+      "color": "#228B22",
+      "poolAvailableDay": "Monday",
+      "poolDisabledDate": null
     },
     {
       "id": "ofc-champions",
@@ -177,7 +211,9 @@
       "type": "club",
       "frequency": "Anual",
       "icon": "trophy",
-      "color": "#00CED1"
+      "color": "#00CED1",
+      "poolAvailableDay": "Monday",
+      "poolDisabledDate": null
     }
   ],
   "internationalClubLeagues": [
@@ -187,7 +223,9 @@
       "country": "Inglaterra",
       "region": "Europa",
       "icon": "football",
-      "color": "#37003C"
+      "color": "#37003C",
+      "poolAvailableDay": "Monday",
+      "poolDisabledDate": null
     },
     {
       "id": "la-liga",
@@ -195,7 +233,9 @@
       "country": "España",
       "region": "Europa",
       "icon": "football",
-      "color": "#FF6B00"
+      "color": "#FF6B00",
+      "poolAvailableDay": "Monday",
+      "poolDisabledDate": null
     },
     {
       "id": "bundesliga",
@@ -203,7 +243,9 @@
       "country": "Alemania",
       "region": "Europa",
       "icon": "football",
-      "color": "#D20515"
+      "color": "#D20515",
+      "poolAvailableDay": "Monday",
+      "poolDisabledDate": null
     },
     {
       "id": "serie-a",
@@ -211,7 +253,9 @@
       "country": "Italia",
       "region": "Europa",
       "icon": "football",
-      "color": "#024494"
+      "color": "#024494",
+      "poolAvailableDay": "Monday",
+      "poolDisabledDate": null
     },
     {
       "id": "ligue-1",
@@ -219,7 +263,9 @@
       "country": "Francia",
       "region": "Europa",
       "icon": "football",
-      "color": "#DCDCDC"
+      "color": "#DCDCDC",
+      "poolAvailableDay": "Monday",
+      "poolDisabledDate": null
     },
     {
       "id": "brasileirao",
@@ -227,7 +273,9 @@
       "country": "Brasil",
       "region": "Sudamérica",
       "icon": "football",
-      "color": "#009739"
+      "color": "#009739",
+      "poolAvailableDay": "Monday",
+      "poolDisabledDate": null
     },
     {
       "id": "primera-division",
@@ -235,7 +283,9 @@
       "country": "Argentina",
       "region": "Sudamérica",
       "icon": "football",
-      "color": "#75AADB"
+      "color": "#75AADB",
+      "poolAvailableDay": "Monday",
+      "poolDisabledDate": null
     },
     {
       "id": "eredivisie",
@@ -243,7 +293,9 @@
       "country": "Países Bajos",
       "region": "Europa",
       "icon": "football",
-      "color": "#FF6C00"
+      "color": "#FF6C00",
+      "poolAvailableDay": "Monday",
+      "poolDisabledDate": null
     },
     {
       "id": "primeira-liga",
@@ -251,7 +303,9 @@
       "country": "Portugal",
       "region": "Europa",
       "icon": "football",
-      "color": "#239F40"
+      "color": "#239F40",
+      "poolAvailableDay": "Monday",
+      "poolDisabledDate": null
     },
     {
       "id": "mls",
@@ -259,7 +313,9 @@
       "country": "Estados Unidos",
       "region": "Norteamérica",
       "icon": "football",
-      "color": "#C4122E"
+      "color": "#C4122E",
+      "poolAvailableDay": "Monday",
+      "poolDisabledDate": null
     }
   ],
   "nationalClubLeagues": [
@@ -268,253 +324,324 @@
       "name": "Premier League",
       "country": "Inglaterra",
       "icon": "football",
-      "color": "#37003C"
+      "color": "#37003C",
+      "poolAvailableDay": "Monday",
+      "poolDisabledDate": null
     },
     {
       "id": "la-liga",
       "name": "La Liga",
       "country": "España",
       "icon": "football",
-      "color": "#FF6B00"
+      "color": "#FF6B00",
+      "poolAvailableDay": "Monday",
+      "poolDisabledDate": null
     },
     {
       "id": "bundesliga",
       "name": "Bundesliga",
       "country": "Alemania",
       "icon": "football",
-      "color": "#D20515"
+      "color": "#D20515",
+      "poolAvailableDay": "Monday",
+      "poolDisabledDate": null
     },
     {
       "id": "serie-a",
       "name": "Serie A",
       "country": "Italia",
       "icon": "football",
-      "color": "#024494"
+      "color": "#024494",
+      "poolAvailableDay": "Monday",
+      "poolDisabledDate": null
     },
     {
       "id": "ligue-1",
       "name": "Ligue 1",
       "country": "Francia",
       "icon": "football",
-      "color": "#DCDCDC"
+      "color": "#DCDCDC",
+      "poolAvailableDay": "Monday",
+      "poolDisabledDate": null
     },
     {
       "id": "primeira-liga",
       "name": "Primeira Liga",
       "country": "Portugal",
       "icon": "football",
-      "color": "#239F40"
+      "color": "#239F40",
+      "poolAvailableDay": "Monday",
+      "poolDisabledDate": null
     },
     {
       "id": "eredivisie",
       "name": "Eredivisie",
       "country": "Países Bajos",
       "icon": "football",
-      "color": "#FF6C00"
+      "color": "#FF6C00",
+      "poolAvailableDay": "Monday",
+      "poolDisabledDate": null
     },
     {
       "id": "jupiler-pro-league",
       "name": "Jupiler Pro League",
       "country": "Bélgica",
       "icon": "football",
-      "color": "#E30613"
+      "color": "#E30613",
+      "poolAvailableDay": "Monday",
+      "poolDisabledDate": null
     },
     {
       "id": "scottish-premiership",
       "name": "Scottish Premiership",
       "country": "Escocia",
       "icon": "football",
-      "color": "#0065A4"
+      "color": "#0065A4",
+      "poolAvailableDay": "Monday",
+      "poolDisabledDate": null
     },
     {
       "id": "super-lig",
       "name": "Süper Lig",
       "country": "Turquía",
       "icon": "football",
-      "color": "#E30A17"
+      "color": "#E30A17",
+      "poolAvailableDay": "Monday",
+      "poolDisabledDate": null
     },
     {
       "id": "brasileirao",
       "name": "Brasileirão",
       "country": "Brasil",
       "icon": "football",
-      "color": "#009739"
+      "color": "#009739",
+      "poolAvailableDay": "Monday",
+      "poolDisabledDate": null
     },
     {
       "id": "primera-division-argentina",
       "name": "Primera División",
       "country": "Argentina",
       "icon": "football",
-      "color": "#75AADB"
+      "color": "#75AADB",
+      "poolAvailableDay": "Monday",
+      "poolDisabledDate": null
     },
     {
       "id": "liga-mx",
       "name": "Liga MX",
       "country": "México",
       "icon": "football",
-      "color": "#00843D"
+      "color": "#00843D",
+      "poolAvailableDay": "Monday",
+      "poolDisabledDate": null
     },
     {
       "id": "mls",
       "name": "MLS",
       "country": "Estados Unidos",
       "icon": "football",
-      "color": "#C4122E"
+      "color": "#C4122E",
+      "poolAvailableDay": "Monday",
+      "poolDisabledDate": null
     },
     {
       "id": "liga-colombia",
       "name": "Liga BetPlay",
       "country": "Colombia",
       "icon": "football",
-      "color": "#FCD116"
+      "color": "#FCD116",
+      "poolAvailableDay": "Monday",
+      "poolDisabledDate": null
     },
     {
       "id": "primera-division-chile",
       "name": "Primera División",
       "country": "Chile",
       "icon": "football",
-      "color": "#D52B1E"
+      "color": "#D52B1E",
+      "poolAvailableDay": "Monday",
+      "poolDisabledDate": null
     },
     {
       "id": "liga-pro-ecuador",
       "name": "Liga Pro",
       "country": "Ecuador",
       "icon": "football",
-      "color": "#FFD100"
+      "color": "#FFD100",
+      "poolAvailableDay": "Monday",
+      "poolDisabledDate": null
     },
     {
       "id": "liga-peru",
       "name": "Liga 1",
       "country": "Perú",
       "icon": "football",
-      "color": "#D91023"
+      "color": "#D91023",
+      "poolAvailableDay": "Monday",
+      "poolDisabledDate": null
     },
     {
       "id": "primera-division-uruguay",
       "name": "Primera División",
       "country": "Uruguay",
       "icon": "football",
-      "color": "#001489"
+      "color": "#001489",
+      "poolAvailableDay": "Monday",
+      "poolDisabledDate": null
     },
     {
       "id": "primera-division-paraguay",
       "name": "Primera División",
       "country": "Paraguay",
       "icon": "football",
-      "color": "#D52B1E"
+      "color": "#D52B1E",
+      "poolAvailableDay": "Monday",
+      "poolDisabledDate": null
     },
     {
       "id": "liga-venezuela",
       "name": "Liga FUTVE",
       "country": "Venezuela",
       "icon": "football",
-      "color": "#FFCC00"
+      "color": "#FFCC00",
+      "poolAvailableDay": "Monday",
+      "poolDisabledDate": null
     },
     {
       "id": "primera-division-bolivia",
       "name": "División Profesional",
       "country": "Bolivia",
       "icon": "football",
-      "color": "#007A33"
+      "color": "#007A33",
+      "poolAvailableDay": "Monday",
+      "poolDisabledDate": null
     },
     {
       "id": "primera-division-costa-rica",
       "name": "Primera División",
       "country": "Costa Rica",
       "icon": "football",
-      "color": "#002B7F"
+      "color": "#002B7F",
+      "poolAvailableDay": "Monday",
+      "poolDisabledDate": null
     },
     {
       "id": "liga-guatemala",
       "name": "Liga Nacional",
       "country": "Guatemala",
       "icon": "football",
-      "color": "#4997D0"
+      "color": "#4997D0",
+      "poolAvailableDay": "Monday",
+      "poolDisabledDate": null
     },
     {
       "id": "liga-honduras",
       "name": "Liga Nacional",
       "country": "Honduras",
       "icon": "football",
-      "color": "#0073CF"
+      "color": "#0073CF",
+      "poolAvailableDay": "Monday",
+      "poolDisabledDate": null
     },
     {
       "id": "primera-division-el-salvador",
       "name": "Primera División",
       "country": "El Salvador",
       "icon": "football",
-      "color": "#0F47AF"
+      "color": "#0F47AF",
+      "poolAvailableDay": "Monday",
+      "poolDisabledDate": null
     },
     {
       "id": "liga-panama",
       "name": "Liga Panameña",
       "country": "Panamá",
       "icon": "football",
-      "color": "#DA121A"
+      "color": "#DA121A",
+      "poolAvailableDay": "Monday",
+      "poolDisabledDate": null
     },
     {
       "id": "liga-nicaragua",
       "name": "Liga Primera",
       "country": "Nicaragua",
       "icon": "football",
-      "color": "#0067C6"
+      "color": "#0067C6",
+      "poolAvailableDay": "Monday",
+      "poolDisabledDate": null
     },
     {
       "id": "j-league",
       "name": "J1 League",
       "country": "Japón",
       "icon": "football",
-      "color": "#E60012"
+      "color": "#E60012",
+      "poolAvailableDay": "Monday",
+      "poolDisabledDate": null
     },
     {
       "id": "k-league",
       "name": "K League 1",
       "country": "Corea del Sur",
       "icon": "football",
-      "color": "#CD2E3A"
+      "color": "#CD2E3A",
+      "poolAvailableDay": "Monday",
+      "poolDisabledDate": null
     },
     {
       "id": "chinese-super-league",
       "name": "Chinese Super League",
       "country": "China",
       "icon": "football",
-      "color": "#DE2910"
+      "color": "#DE2910",
+      "poolAvailableDay": "Monday",
+      "poolDisabledDate": null
     },
     {
       "id": "saudi-pro-league",
       "name": "Saudi Pro League",
       "country": "Arabia Saudita",
       "icon": "football",
-      "color": "#006C35"
+      "color": "#006C35",
+      "poolAvailableDay": "Monday",
+      "poolDisabledDate": null
     },
     {
       "id": "a-league",
       "name": "A-League Men",
       "country": "Australia",
       "icon": "football",
-      "color": "#FFB81C"
+      "color": "#FFB81C",
+      "poolAvailableDay": "Monday",
+      "poolDisabledDate": null
     },
     {
       "id": "egyptian-premier-league",
       "name": "Egyptian Premier League",
       "country": "Egipto",
       "icon": "football",
-      "color": "#CE1126"
+      "color": "#CE1126",
+      "poolAvailableDay": "Monday",
+      "poolDisabledDate": null
     },
     {
       "id": "south-african-premiership",
       "name": "Premier Soccer League",
       "country": "Sudáfrica",
       "icon": "football",
-      "color": "#007A4D"
+      "color": "#007A4D",
+      "poolAvailableDay": "Monday",
+      "poolDisabledDate": null
     },
     {
       "id": "nigerian-league",
       "name": "Nigerian Premier League",
       "country": "Nigeria",
       "icon": "football",
-      "color": "#008751"
+      "color": "#008751",
+      "poolAvailableDay": "Monday",
+      "poolDisabledDate": null
     }
   ]
 }
-

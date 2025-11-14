@@ -21,13 +21,13 @@ const SearchBar: React.FC<SearchBarProps> = ({
 
   return (
     <View style={[styles.container, style]}>
-      <Ionicons name="search" size={20} color="#687076" style={styles.searchIcon} />
+      <Ionicons name="search" size={20} color="#1A4D3A" style={styles.searchIcon} />
       <TextInput
         style={styles.input}
         value={value}
         onChangeText={onChangeText}
         placeholder={placeholder}
-        placeholderTextColor="#687076"
+        placeholderTextColor="rgba(26, 77, 58, 0.6)"
         returnKeyType="search"
         autoCorrect={false}
         {...rest}
@@ -38,7 +38,7 @@ const SearchBar: React.FC<SearchBarProps> = ({
           style={styles.clearButton}
           activeOpacity={0.7}
         >
-          <Ionicons name="close-circle" size={20} color="#687076" />
+          <Ionicons name="close-circle" size={20} color="#1A4D3A" />
         </TouchableOpacity>
       )}
     </View>

@@ -1,4 +1,5 @@
-import React, { createContext, ReactNode, useContext, useState } from 'react';
+import React, { createContext, ReactNode, useContext, useState, useEffect } from 'react';
+import { setAuthToken } from '@/services/services-config';
 
 type LocalDataType = {
   isAuthenticated: boolean;
@@ -23,8 +24,22 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   });
 
   const setLocalData = (value: Partial<LocalDataType>) => {
-    setLocalDataState(prev => ({ ...prev, ...value }));
+    setLocalDataState(prev => {
+      const newData = { ...prev, ...value };
+      // Configurar token en axios cuando cambie
+      if (newData.token) {
+        setAuthToken(newData.token);
+      }
+      return newData;
+    });
   };
+
+  // Configurar token inicial si existe
+  useEffect(() => {
+    if (localData.token) {
+      setAuthToken(localData.token);
+    }
+  }, [localData.token]);
 
   return (
     <AppContext.Provider value={{ localData, setLocalData }}>

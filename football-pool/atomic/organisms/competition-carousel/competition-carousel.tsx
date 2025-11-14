@@ -20,7 +20,7 @@ const CompetitionCarousel: React.FC<CompetitionCarouselProps> = ({
         activeOpacity={0.7}
       >
         <Text style={styles.title}>{title}</Text>
-        <Ionicons name="chevron-forward" size={24} color="#11181C" />
+        <Ionicons name="chevron-forward" size={26} color="#FFFFFF" />
       </TouchableOpacity>
       <ScrollView
         horizontal
@@ -37,7 +37,12 @@ const CompetitionCarousel: React.FC<CompetitionCarouselProps> = ({
             region={item.region}
             country={item.country}
             icon={item.icon}
+            image={item.image}
             color={item.color}
+            poolAvailableDay={item.poolAvailableDay}
+            poolaAvailableDay={item.poolaAvailableDay}
+            poolDisabledDate={item.poolDisabledDate}
+            poolDisbaledDate={item.poolDisbaledDate}
             onPress={onPressCard}
           />
         ))}

@@ -4,7 +4,7 @@ export const styles = StyleSheet.create({
   container: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#fff',
+    backgroundColor: '#E8F5E9',
     borderRadius: 12,
     paddingHorizontal: 16,
     paddingVertical: 12,
@@ -20,6 +20,7 @@ export const styles = StyleSheet.create({
     shadowRadius: 3.84,
     elevation: 20,
     zIndex: 20,
+    opacity: 0.95,
   },
   searchIcon: {
     marginRight: 12,
@@ -27,7 +28,7 @@ export const styles = StyleSheet.create({
   input: {
     flex: 1,
     fontSize: 16,
-    color: '#11181C',
+    color: '#1A4D3A',
     padding: 0,
   },
   clearButton: {
