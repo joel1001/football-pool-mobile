@@ -5,10 +5,13 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useState, useEffect } from 'react';
 import { getCompetitionDetails } from '@/services/competitions';
 import { CompetitionDetailsResponse } from '@/services/competitions/competition-types';
-import { createGroup, inviteUser, patchGroup } from '@/services/groups';
-import { AnimatedBackgroundCorner, CreateGroupModal } from '@/atomic';
+import { createGroup, inviteUser, patchGroup, getUserGroups } from '@/services/groups';
+import type { Group } from '@/services/groups/group-types';
+import { AnimatedBackgroundCorner, CreateGroupModal, ProfileBadge } from '@/atomic';
+import { useTranslation } from 'react-i18next';
 
 export default function CompetitionDetailsScreen() {
+  const { t } = useTranslation();
   const params = useLocalSearchParams();
   const router = useRouter();
   const { id, category } = params;
@@ -17,10 +20,17 @@ export default function CompetitionDetailsScreen() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [userGroups, setUserGroups] = useState<Group[]>([]);
+  const [isLoadingUserGroups, setIsLoadingUserGroups] = useState(false);
 
   useEffect(() => {
     loadCompetitionDetails();
   }, [id, category]);
+
+  useEffect(() => {
+    if (!id) return;
+    loadUserGroups();
+  }, [id]);
 
   const loadCompetitionDetails = async () => {
     try {
@@ -37,9 +47,30 @@ export default function CompetitionDetailsScreen() {
       setCompetition(data);
     } catch (err: any) {
       console.error('Error loading competition details:', err);
-      setError(err.response?.data?.error || 'Error al cargar detalles');
+      setError(err.response?.data?.error || t('competitions.error'));
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const loadUserGroups = async () => {
+    try {
+      setIsLoadingUserGroups(true);
+      const response = await getUserGroups();
+      const competitionId = id as string;
+      const groupsForCompetition = response.groups.filter(
+        (group) => group.competitionId === competitionId
+      );
+      console.log('📚 User groups for competition:', {
+        competitionId,
+        total: response.count,
+        filtered: groupsForCompetition.length,
+      });
+      setUserGroups(groupsForCompetition);
+    } catch (err: any) {
+      console.error('Error loading user groups:', err);
+    } finally {
+      setIsLoadingUserGroups(false);
     }
   };
 
@@ -101,74 +132,186 @@ export default function CompetitionDetailsScreen() {
   const handleCreateGroupFromModal = async (
     groupName: string | undefined,
     existingUserIds: string[],
-    inviteEmails: string[]
+    inviteEmails: string[],
+    totalBetAmount: number
   ) => {
     if (!competition) return;
     
+    // Validate group name is provided (required by backend)
+    if (!groupName || groupName.trim() === '') {
+      Alert.alert(
+        t('groups.nameRequired'),
+        t('groups.nameRequiredMessage'),
+        [{ text: t('common.close') }]
+      );
+      return;
+    }
+    
     try {
-      console.log('Creating group for competition:', id, category);
-      console.log('Group name:', groupName);
-      console.log('Existing user IDs:', existingUserIds);
-      console.log('Invite emails:', inviteEmails);
-      
-      // 1. Create group
-      const response = await createGroup({
-        competitionId: id as string,
-        category: category as 'fifaNationalTeamCups' | 'fifaOfficialClubCups' | 'nationalClubLeagues',
-        name: groupName,
+      console.log('🚀 Starting group creation process');
+      console.log('📊 Competition:', { id, category, competitionName: competition?.name });
+      console.log('📝 Group name:', groupName);
+      console.log('👥 Existing users to add:', existingUserIds.length, existingUserIds);
+      console.log('📧 Emails to invite:', inviteEmails.length, inviteEmails);
+      console.log('📅 Competition dates:', {
+        poolaAvailableDay: competition?.poolaAvailableDay,
+        startDate: competition?.startDate,
+        endDate: competition?.endDate,
       });
       
+      // PASO 2: Create group with all users and emails in one request
+      console.log('📤 Step 2: Creating group with participants...');
+      // Validar monto mínimo total fijo de $50 (se divide entre todos los participantes)
+      const MINIMUM_TOTAL_BET_AMOUNT = 50;
+      
+      if (totalBetAmount < MINIMUM_TOTAL_BET_AMOUNT) {
+        Alert.alert(
+          t('createGroupModal.minimumAmountError'),
+          t('createGroupModal.minimumAmountMessage', {
+            minimum: MINIMUM_TOTAL_BET_AMOUNT
+          })
+        );
+        return;
+      }
+      
+      const requestBody = {
+        competitionId: id as string,
+        category: category as 'fifaNationalTeamCups' | 'fifaOfficialClubCups' | 'nationalClubLeagues',
+        name: groupName.trim(),
+        totalBetAmount: totalBetAmount,
+        userIds: existingUserIds.length > 0 ? existingUserIds : undefined,
+        invitedEmails: inviteEmails.length > 0 ? inviteEmails : undefined,
+      };
+      console.log('📦 Request body:', requestBody);
+      
+      const response = await createGroup(requestBody);
+      
       const groupId = response.group.groupId;
-      console.log('✅ Group created:', groupId);
-      
-      // 2. Add existing users to the group
-      if (existingUserIds.length > 0) {
-        console.log('Adding existing users to group...');
-        await patchGroup(groupId, {
-          userIds: [...response.group.userIds, ...existingUserIds],
-        });
-        console.log('✅ Existing users added');
-      }
-      
-      // 3. Send invitations to non-existing users
-      if (inviteEmails.length > 0) {
-        console.log('Sending invitations...');
-        for (const email of inviteEmails) {
-          await inviteUser(groupId, { email });
-        }
-        console.log('✅ Invitations sent');
-      }
+      console.log('✅ Step 2 Complete: Group created successfully');
+      console.log('📦 Group ID:', groupId);
+      console.log('📦 Group response:', {
+        groupId: response.group.groupId,
+        competitionName: response.group.competitionName,
+        invitedEmails: response.invitedEmails,
+        addedUserIds: response.addedUserIds,
+      });
       
       // Close modal
       setShowCreateModal(false);
       
       // Show success message
+      let message = t('groups.groupCreatedSuccess', { name: response.group.competitionName }) + '\n\n';
+      
+      if (response.addedUserIds && response.addedUserIds > 0) {
+        message += t('groups.usersAdded', { count: response.addedUserIds }) + '\n';
+      }
+      
+      if (response.invitedEmails && response.invitedEmails > 0) {
+        message += t('groups.invitationsSent', { count: response.invitedEmails }) + '\n\n';
+        message += t('groups.emailInstructions');
+      }
+      
       Alert.alert(
-        '✅ Grupo Creado',
-        `Tu grupo "${response.group.competitionName}" ha sido creado exitosamente.\n\n` +
-        `👥 ${existingUserIds.length} usuarios agregados\n` +
-        `📧 ${inviteEmails.length} invitaciones enviadas`,
+        t('groups.groupCreated'),
+        message,
         [
-          {
-            text: 'Ver Grupo',
-            onPress: () => {
-              // TODO: Navigate to group details
-              console.log('Navigate to group:', groupId);
+            {
+              text: t('groups.viewGroup'),
+              onPress: () => {
+                router.push({
+                  pathname: '/group-details',
+                  params: { id: groupId },
+                });
+              },
             },
-          },
           {
-            text: 'OK',
+            text: t('common.close'),
             style: 'cancel',
           },
         ]
       );
     } catch (err: any) {
       console.error('❌ Error creating group:', err);
-      Alert.alert(
-        'Error',
-        err.response?.data?.error || 'No se pudo crear el grupo. Intenta nuevamente.',
-        [{ text: 'OK' }]
-      );
+      console.error('❌ Error details:', {
+        status: err.response?.status,
+        statusText: err.response?.statusText,
+        data: err.response?.data,
+        message: err.message,
+      });
+      
+      // Handle 409 Conflict - Group already exists
+      // Backend validates: creatorUserId + competitionId already exists in database
+      if (err.response?.status === 409) {
+        const conflictData = err.response.data;
+        console.log('⚠️ Group already exists:', {
+          existingGroupId: conflictData.existingGroupId,
+          existingGroupName: conflictData.existingGroupName,
+          message: conflictData.message,
+          fullGroup: conflictData.existingGroup,
+        });
+        
+        Alert.alert(
+          t('groups.groupAlreadyExists'),
+          `${conflictData.message || t('groups.groupAlreadyExistsMessage')}\n\n` +
+          `${t('groups.existingGroup')}: ${conflictData.existingGroupName || t('groups.noName')}\n` +
+          `${t('groups.competition')}: ${competition?.shortName || competition?.name || 'N/A'}`,
+          [
+            {
+              text: t('groups.viewExistingGroup'),
+              onPress: () => {
+                router.push({
+                  pathname: '/group-details',
+                  params: { id: conflictData.existingGroupId },
+                });
+              },
+            },
+            {
+              text: t('common.close'),
+              style: 'cancel',
+            },
+          ]
+        );
+        return;
+      }
+      
+      // Handle other errors
+      let errorMessage = t('groups.createGroupError');
+      
+      if (err.response?.status === 400) {
+        const backendErrorMessage = err.response.data?.error || '';
+        
+        // Interceptar error del backend con lógica antigua ($50 por usuario)
+        if (backendErrorMessage.includes('totalBetAmount must be at least') || 
+            backendErrorMessage.includes('monto mínimo por usuario') ||
+            backendErrorMessage.includes('usuarios estimados')) {
+          // El backend todavía está usando la lógica antigua, mostrar mensaje claro
+          errorMessage = t('groups.backendValidationError') + '\n\n' +
+                        t('groups.backendValidationMessage') + '\n\n' +
+                        t('groups.correctMinimumInfo');
+        } else {
+          errorMessage = backendErrorMessage || t('groups.invalidFields');
+        }
+      } else if (err.response?.status === 404) {
+        errorMessage = t('competitions.notFound');
+      } else if (err.response?.status === 500) {
+        const backendError = err.response.data?.error || '';
+        
+        // Errores específicos del backend
+        if (backendError.includes('/ by zero') || backendError.includes('division by zero')) {
+          errorMessage = t('groups.divisionByZeroError') + '\n\n' + 
+                        t('groups.divisionByZeroMessage') + '\n\n' +
+                        `Competencia: ${competition?.name || id}\n` +
+                        `Fecha de inicio (poolaAvailableDay): ${competition?.poolaAvailableDay || 'No disponible'}\n` +
+                        `Usuarios: ${existingUserIds.length}\n` +
+                        `Monto enviado: $1.00`;
+        } else {
+          errorMessage = backendError || t('groups.serverError');
+        }
+      } else if (err.response?.data?.error) {
+        errorMessage = err.response.data.error;
+      }
+      
+      Alert.alert(t('common.error'), errorMessage, [{ text: t('common.close') }]);
     }
   };
 
@@ -176,6 +319,7 @@ export default function CompetitionDetailsScreen() {
     return (
       <View style={styles.container}>
         <AnimatedBackgroundCorner />
+        <ProfileBadge />
         <View style={styles.header}>
           <TouchableOpacity
             onPress={() => router.back()}
@@ -183,7 +327,7 @@ export default function CompetitionDetailsScreen() {
           >
             <Ionicons name="arrow-back" size={24} color="#E8F5E9" />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Cargando...</Text>
+          <Text style={styles.headerTitle}>{t('common.loading')}</Text>
           <View style={styles.placeholder} />
         </View>
         <View style={styles.loadingContainer}>
@@ -197,6 +341,7 @@ export default function CompetitionDetailsScreen() {
     return (
       <View style={styles.container}>
         <AnimatedBackgroundCorner />
+        <ProfileBadge />
         <View style={styles.header}>
           <TouchableOpacity
             onPress={() => router.back()}
@@ -204,15 +349,15 @@ export default function CompetitionDetailsScreen() {
           >
             <Ionicons name="arrow-back" size={24} color="#E8F5E9" />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Error</Text>
+          <Text style={styles.headerTitle}>{t('common.error')}</Text>
           <View style={styles.placeholder} />
         </View>
         <View style={styles.content}>
           <Text style={styles.errorText}>
-            {error || 'Competición no encontrada'}
+            {error || t('competitions.notFound')}
           </Text>
           <TouchableOpacity onPress={loadCompetitionDetails} style={styles.retryButton}>
-            <Text style={styles.retryButtonText}>Reintentar</Text>
+            <Text style={styles.retryButtonText}>{t('common.retry')}</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -229,6 +374,7 @@ export default function CompetitionDetailsScreen() {
   return (
     <View style={styles.container}>
       <AnimatedBackgroundCorner />
+      <ProfileBadge />
       
       <View style={styles.header}>
         <TouchableOpacity
@@ -274,12 +420,12 @@ export default function CompetitionDetailsScreen() {
 
         {/* Información General */}
         <View style={styles.infoCard}>
-          <Text style={styles.sectionTitle}>Información General</Text>
+          <Text style={styles.sectionTitle}>{t('competitionDetails.generalInfo')}</Text>
           
           <View style={styles.infoRow}>
             <View style={styles.infoLabel}>
               <Ionicons name="football" size={20} color="#1A4D3A" />
-              <Text style={styles.infoLabelText}>Nombre Completo</Text>
+              <Text style={styles.infoLabelText}>{t('competitionDetails.fullName')}</Text>
             </View>
             <Text style={styles.infoValue}>{competition.name}</Text>
           </View>
@@ -288,10 +434,10 @@ export default function CompetitionDetailsScreen() {
             <View style={styles.infoRow}>
               <View style={styles.infoLabel}>
                 <Ionicons name="trophy" size={20} color="#1A4D3A" />
-                <Text style={styles.infoLabelText}>Tipo</Text>
+                <Text style={styles.infoLabelText}>{t('competitionDetails.type')}</Text>
               </View>
               <Text style={styles.infoValue}>
-                {competition.type === 'national-team' ? 'Selecciones' : 'Clubes'}
+                {competition.type === 'national-team' ? t('competitionDetails.nationalTeam') : t('competitionDetails.clubs')}
               </Text>
             </View>
           )}
@@ -300,7 +446,7 @@ export default function CompetitionDetailsScreen() {
             <View style={styles.infoRow}>
               <View style={styles.infoLabel}>
                 <Ionicons name="location" size={20} color="#1A4D3A" />
-                <Text style={styles.infoLabelText}>Región</Text>
+                <Text style={styles.infoLabelText}>{t('competitionDetails.region')}</Text>
               </View>
               <Text style={styles.infoValue}>{competition.region}</Text>
             </View>
@@ -310,7 +456,7 @@ export default function CompetitionDetailsScreen() {
             <View style={styles.infoRow}>
               <View style={styles.infoLabel}>
                 <Ionicons name="flag" size={20} color="#1A4D3A" />
-                <Text style={styles.infoLabelText}>País</Text>
+                <Text style={styles.infoLabelText}>{t('competitionDetails.country')}</Text>
               </View>
               <Text style={styles.infoValue}>{competition.country}</Text>
             </View>
@@ -320,10 +466,45 @@ export default function CompetitionDetailsScreen() {
             <View style={styles.infoRow}>
               <View style={styles.infoLabel}>
                 <Ionicons name="calendar" size={20} color="#1A4D3A" />
-                <Text style={styles.infoLabelText}>Frecuencia</Text>
+                <Text style={styles.infoLabelText}>{t('competitionDetails.frequency')}</Text>
               </View>
               <Text style={styles.infoValue}>{competition.frequency}</Text>
             </View>
+          )}
+        </View>
+
+        {/* Botón para ver grupos existentes (vista dedicada) */}
+        <View style={styles.userGroupsSection}>
+          <Text style={styles.sectionTitle}>{t('competitionDetails.existingGroups')}</Text>
+          {isLoadingUserGroups ? (
+            <View style={styles.userGroupsLoadingRow}>
+              <ActivityIndicator size="small" color="#1A4D3A" />
+              <Text style={styles.userGroupsLoadingText}>{t('groups.loading')}</Text>
+            </View>
+          ) : userGroups.length === 0 ? (
+            <Text style={styles.userGroupsEmptyText}>
+              {t('competitionDetails.noGroupsForCompetition')}
+            </Text>
+          ) : (
+            <TouchableOpacity
+              style={styles.userGroupItem}
+              activeOpacity={0.8}
+              onPress={() =>
+                router.push({
+                  pathname: '/competition-groups',
+                  params: { 
+                    competitionId: id,
+                    competitionName: competition.name,
+                  },
+                })
+              }
+            >
+              <Ionicons name="list" size={20} color="#1A4D3A" />
+              <Text style={styles.userGroupName} numberOfLines={1}>
+                {t('competitionDetails.viewGroupsAndTables')}
+              </Text>
+              <Ionicons name="arrow-forward" size={18} color="#1A4D3A" />
+            </TouchableOpacity>
           )}
         </View>
 
@@ -341,7 +522,7 @@ export default function CompetitionDetailsScreen() {
               style={styles.createGroupGradient}
             >
               <Ionicons name="people" size={24} color="#FFFFFF" />
-              <Text style={styles.createGroupText}>Crear Grupo</Text>
+              <Text style={styles.createGroupText}>{t('groups.createGroup')}</Text>
               <Ionicons name="arrow-forward" size={20} color="#FFFFFF" />
             </LinearGradient>
           </TouchableOpacity>
@@ -349,13 +530,9 @@ export default function CompetitionDetailsScreen() {
           /* Próximamente - Solo se muestra si NO está abierto */
           <View style={styles.comingSoonCard}>
             <Ionicons name="construct" size={40} color="#1A4D3A" />
-            <Text style={styles.comingSoonTitle}>Próximamente</Text>
+            <Text style={styles.comingSoonTitle}>{t('competitionDetails.comingSoon')}</Text>
             <Text style={styles.comingSoonText}>
-              • Partidos y resultados en vivo{'\n'}
-              • Tabla de posiciones{'\n'}
-              • Equipos participantes{'\n'}
-              • Goleadores y estadísticas{'\n'}
-              • Calendario de partidos
+              {t('competitionDetails.comingSoonFeatures')}
             </Text>
           </View>
         )}
@@ -525,6 +702,51 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#1A4D3A',
     fontWeight: '500',
+  },
+  userGroupsSection: {
+    backgroundColor: 'rgba(232, 245, 233, 0.35)',
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 20,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.08,
+    shadowRadius: 3.84,
+    elevation: 10,
+  },
+  userGroupsLoadingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  userGroupsLoadingText: {
+    fontSize: 14,
+    color: '#1A4D3A',
+  },
+  userGroupsEmptyText: {
+    fontSize: 14,
+    color: '#1A4D3A',
+    opacity: 0.8,
+  },
+  userGroupItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    marginTop: 8,
+  },
+  userGroupName: {
+    flex: 1,
+    marginHorizontal: 8,
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#1A4D3A',
   },
   comingSoonCard: {
     backgroundColor: 'rgba(232, 245, 233, 0.5)',

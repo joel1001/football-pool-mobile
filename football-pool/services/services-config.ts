@@ -1,5 +1,6 @@
 import axios from "axios";
 import { Platform } from "react-native";
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const getBaseURL = () => {
   if (Platform.OS === 'android') {
@@ -22,25 +23,115 @@ export const setAuthToken = (token: string | null) => {
   authToken = token;
 };
 
-axiosBase.interceptors.request.use((config) => {
+// Función para obtener el userId del token JWT
+export const getUserIdFromToken = (token: string | null): string | null => {
+  if (!token) return null;
+  
+  try {
+    // Remover "Bearer " si existe
+    const cleanToken = token.replace('Bearer ', '');
+    const parts = cleanToken.split('.');
+    
+    if (parts.length === 3) {
+      // Decodificar el payload base64
+      const base64Url = parts[1];
+      const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+      const jsonPayload = decodeURIComponent(
+        atob(base64)
+          .split('')
+          .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+          .join('')
+      );
+      const payload = JSON.parse(jsonPayload);
+      
+      // El userId puede estar en diferentes campos dependiendo del backend
+      return payload.userId || payload.sub || payload._id || payload.id || null;
+    }
+  } catch (error) {
+    console.error('Error decoding token:', error);
+  }
+  
+  return null;
+};
+
+const STORAGE_KEY = '@football_pool:auth_data';
+
+axiosBase.interceptors.request.use(async (config) => {
   // Configure token
+  let tokenToUse: string | null = null;
+  
   if (authToken) {
-    config.headers.Authorization = `Bearer ${authToken}`;
+    tokenToUse = authToken;
   } else {
+    // Intentar obtener token de AsyncStorage como fallback
     try {
-      const token = typeof localStorage !== 'undefined' ? localStorage.getItem("token") : undefined;
-      if (token) config.headers.Authorization = `Bearer ${token}`;
-    } catch (_) {
+      const storedData = await AsyncStorage.getItem(STORAGE_KEY);
+      if (storedData) {
+        const parsedData = JSON.parse(storedData);
+        if (parsedData.token) {
+          tokenToUse = parsedData.token;
+          // Guardar en memoria para futuras requests
+          authToken = parsedData.token;
+        }
+      }
+    } catch (error) {
+      // Ignorar errores de AsyncStorage
+    }
+  }
+  
+  // Verificar y formatear token
+  if (tokenToUse) {
+    // Asegurar que el token tenga el formato correcto "Bearer {token}"
+    if (tokenToUse.startsWith('Bearer ')) {
+      config.headers.Authorization = tokenToUse;
+    } else {
+      config.headers.Authorization = `Bearer ${tokenToUse}`;
     }
   }
   
   // Request log
   const fullURL = `${config.baseURL}${config.url}`;
+  const authHeader = config.headers.Authorization as string | undefined;
+  let tokenInfo: any = { hasToken: !!authHeader };
+  
+  if (authHeader) {
+    const token = authHeader.replace('Bearer ', '');
+    // Extraer información del token sin exponerlo completo
+    const parts = token.split('.');
+    if (parts.length === 3) {
+      try {
+        // Decodificar el payload base64 (sin verificar firma)
+        // En React Native usamos atob para decodificar base64
+        const base64Url = parts[1];
+        const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+        const jsonPayload = decodeURIComponent(
+          atob(base64)
+            .split('')
+            .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+            .join('')
+        );
+        const payload = JSON.parse(jsonPayload);
+        tokenInfo = {
+          hasToken: true,
+          tokenLength: token.length,
+          userId: payload.userId || payload.sub || 'N/A',
+          email: payload.email || 'N/A',
+          exp: payload.exp ? new Date(payload.exp * 1000).toISOString() : 'N/A',
+          isExpired: payload.exp ? Date.now() / 1000 > payload.exp : 'Unknown',
+        };
+      } catch (e) {
+        tokenInfo.tokenLength = token.length;
+        tokenInfo.decodeError = 'Could not decode token payload';
+      }
+    } else {
+      tokenInfo.tokenFormat = 'Invalid JWT format';
+    }
+  }
+  
   console.log('🌐 API REQUEST:', {
     method: config.method?.toUpperCase(),
     url: fullURL,
-    hasToken: !!config.headers.Authorization,
-    token: config.headers.Authorization ? `${String(config.headers.Authorization).substring(0, 20)}...` : 'None',
+    ...tokenInfo,
   });
   
   return config;
@@ -60,12 +151,22 @@ axiosBase.interceptors.response.use(
     // Error log with details
     if (error.response) {
       // The server responded with a status code outside the 2xx range
-      console.error('❌ API ERROR:', {
-        status: error.response.status,
-        url: error.config?.url,
-        data: error.response.data,
-        headers: error.response.headers,
-      });
+      
+      // No loguear errores 500 para predicciones que no existen (es esperado)
+      const isPredictionNotFound = 
+        error.config?.url?.includes('/predict') && 
+        error.response.status === 500 &&
+        (error.response.data?.error?.includes('Error getting prediction') ||
+         error.response.data?.error?.includes('prediction'));
+      
+      if (!isPredictionNotFound) {
+        console.error('❌ API ERROR:', {
+          status: error.response.status,
+          url: error.config?.url,
+          data: error.response.data,
+          headers: error.response.headers,
+        });
+      }
     } else if (error.request) {
       // The request was made but no response was received
       console.error('❌ NO RESPONSE:', {

@@ -10,6 +10,8 @@ const CompetitionCarousel: React.FC<CompetitionCarouselProps> = ({
   data,
   onPressCard,
   onPressTitle,
+  onPressViewGroups,
+  userGroups = new Set(),
   style,
 }) => {
   return (
@@ -28,24 +30,29 @@ const CompetitionCarousel: React.FC<CompetitionCarouselProps> = ({
         contentContainerStyle={styles.scrollContent}
         style={styles.scrollContainer}
       >
-        {data.map((item) => (
-          <CompetitionCard
-            key={item.id}
-            id={item.id}
-            name={item.name}
-            shortName={item.shortName}
-            region={item.region}
-            country={item.country}
-            icon={item.icon}
-            image={item.image}
-            color={item.color}
-            poolAvailableDay={item.poolAvailableDay}
-            poolaAvailableDay={item.poolaAvailableDay}
-            poolDisabledDate={item.poolDisabledDate}
-            poolDisbaledDate={item.poolDisbaledDate}
-            onPress={onPressCard}
-          />
-        ))}
+        {data.map((item) => {
+          const hasGroup = userGroups.has(item.id);
+          return (
+            <CompetitionCard
+              key={item.id}
+              id={item.id}
+              name={item.name}
+              shortName={item.shortName}
+              region={item.region}
+              country={item.country}
+              icon={item.icon}
+              image={item.image}
+              color={item.color}
+              poolAvailableDay={item.poolAvailableDay}
+              poolaAvailableDay={item.poolaAvailableDay}
+              poolDisabledDate={item.poolDisabledDate}
+              poolDisbaledDate={item.poolDisbaledDate}
+              hasGroup={hasGroup}
+              onPress={onPressCard}
+              onPressViewGroups={onPressViewGroups}
+            />
+          );
+        })}
       </ScrollView>
     </View>
   );

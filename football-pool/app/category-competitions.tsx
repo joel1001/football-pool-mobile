@@ -2,11 +2,14 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useState, useEffect } from 'react';
-import { CompetitionCard } from '@/atomic';
+import { CompetitionCard, ProfileBadge } from '@/atomic';
 import { getCompetitionsByCategory } from '@/services/competitions';
 import { Competition } from '@/services/competitions/competition-types';
+import { getUserGroups } from '@/services/groups';
+import { useTranslation } from 'react-i18next';
 
 export default function CategoryCompetitionsScreen() {
+  const { t } = useTranslation();
   const params = useLocalSearchParams();
   const router = useRouter();
   const { category, title } = params;
@@ -14,10 +17,25 @@ export default function CategoryCompetitionsScreen() {
   const [competitions, setCompetitions] = useState<Competition[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [userGroupsCompetitionIds, setUserGroupsCompetitionIds] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     loadCategoryCompetitions();
+    loadUserGroups();
   }, [category]);
+
+  const loadUserGroups = async () => {
+    try {
+      const response = await getUserGroups();
+      const competitionIds = new Set(
+        response.groups.map((group) => group.competitionId)
+      );
+      setUserGroupsCompetitionIds(competitionIds);
+      console.log('📊 User Groups Competition IDs:', Array.from(competitionIds));
+    } catch (err: any) {
+      console.error('Error loading user groups:', err);
+    }
+  };
 
   const loadCategoryCompetitions = async () => {
     try {
@@ -29,17 +47,27 @@ export default function CategoryCompetitionsScreen() {
       setCompetitions(data);
     } catch (err: any) {
       console.error('Error loading category competitions:', err);
-      setError(err.response?.data?.error || 'Error al cargar competiciones');
+      setError(err.response?.data?.error || t('competitions.error'));
     } finally {
       setIsLoading(false);
     }
   };
 
   const handleCardPress = (id: string) => {
-    console.log('Competition selected:', id);
     router.push({
       pathname: '/competition-details',
       params: { id, category },
+    });
+  };
+
+  const handleViewGroups = (competitionId: string, competitionName: string) => {
+    console.log('View groups for competition:', competitionId);
+    router.push({
+      pathname: '/competition-groups',
+      params: { 
+        competitionId,
+        competitionName,
+      },
     });
   };
 
@@ -58,7 +86,7 @@ export default function CategoryCompetitionsScreen() {
         </View>
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color="#1A4D3A" />
-          <Text style={styles.loadingText}>Cargando...</Text>
+          <Text style={styles.loadingText}>{t('common.loading')}</Text>
         </View>
       </View>
     );
@@ -80,7 +108,7 @@ export default function CategoryCompetitionsScreen() {
         <View style={styles.errorContainer}>
           <Text style={styles.errorText}>{error}</Text>
           <TouchableOpacity onPress={loadCategoryCompetitions} style={styles.retryButton}>
-            <Text style={styles.retryText}>Reintentar</Text>
+            <Text style={styles.retryText}>{t('common.retry')}</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -89,6 +117,7 @@ export default function CategoryCompetitionsScreen() {
 
   return (
     <View style={styles.container}>
+      <ProfileBadge />
       <View style={styles.header}>
         <TouchableOpacity
           onPress={() => router.back()}
@@ -102,23 +131,28 @@ export default function CategoryCompetitionsScreen() {
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         <View style={styles.grid}>
-          {competitions.map((comp) => (
-            <CompetitionCard
-              key={comp.id}
-              id={comp.id}
-              name={comp.name}
-              shortName={comp.shortName}
-              region={comp.region}
-              country={comp.country}
-              image={comp.image}
-              poolAvailableDay={comp.poolAvailableDay}
-              poolaAvailableDay={comp.poolaAvailableDay}
-              poolDisabledDate={comp.poolDisabledDate}
-              poolDisbaledDate={comp.poolDisbaledDate}
-              onPress={handleCardPress}
-              style={styles.card}
-            />
-          ))}
+          {competitions.map((comp) => {
+            const hasGroup = userGroupsCompetitionIds.has(comp.id);
+            return (
+              <CompetitionCard
+                key={comp.id}
+                id={comp.id}
+                name={comp.name}
+                shortName={comp.shortName}
+                region={comp.region}
+                country={comp.country}
+                image={comp.image}
+                poolAvailableDay={comp.poolAvailableDay}
+                poolaAvailableDay={comp.poolaAvailableDay}
+                poolDisabledDate={comp.poolDisabledDate}
+                poolDisbaledDate={comp.poolDisbaledDate}
+                hasGroup={hasGroup}
+                onPress={handleCardPress}
+                onPressViewGroups={handleViewGroups}
+                style={styles.card}
+              />
+            );
+          })}
         </View>
       </ScrollView>
     </View>

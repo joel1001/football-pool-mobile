@@ -7,7 +7,9 @@ export interface CreateGroupModalProps {
   onCreate: (
     groupName: string | undefined,
     existingUserIds: string[],
-    inviteEmails: string[]
+    inviteEmails: string[],
+    totalBetAmount: number
   ) => Promise<void>;
 }
+
 

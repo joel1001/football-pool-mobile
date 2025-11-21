@@ -1,5 +1,5 @@
 import axiosBase from "../services-config";
-import { LoginProps, SignUpProps, UserInfoProps, ForgotPasswordProps, ForgotPasswordResponse, ResetPasswordProps, ResetPasswordResponse, SocialAuthProps, SocialAuthResponse, CompleteSocialProfileProps } from "./auth-types";
+import { LoginProps, SignUpProps, UserInfoProps, ForgotPasswordProps, ForgotPasswordResponse, ResetPasswordProps, ResetPasswordResponse, SocialAuthProps, SocialAuthResponse, CompleteSocialProfileProps, UpdateUserProfileProps } from "./auth-types";
 
 export const loginService = async (
     body: LoginProps
@@ -40,5 +40,13 @@ export const completeSocialProfileService = async (
     body: CompleteSocialProfileProps
   ): Promise<UserInfoProps> => {
     const response = await axiosBase.put<UserInfoProps>("auth/complete-profile", body);
+    return response.data;
+  };
+
+export const updateUserProfileService = async (
+    userId: string,
+    body: UpdateUserProfileProps
+  ): Promise<UserInfoProps> => {
+    const response = await axiosBase.patch<UserInfoProps>(`auth/id?userId=${userId}`, body);
     return response.data;
   };

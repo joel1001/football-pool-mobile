@@ -185,6 +185,9 @@ export const Login = () => {
         setLocalData({ 
           isAuthenticated: true, 
           username: userInfo.name, 
+          email: userInfo.email,
+          userId: userInfo._id,
+          profileImage: userInfo.profileImage,
           token: userInfo.accessToken 
         });
       } else {
@@ -221,7 +224,12 @@ export const Login = () => {
         }
         const userInfo = await loginService({ email: email.toLowerCase(), password });
         if (userInfo) {
-          setLocalData({ isAuthenticated: true, username: userInfo.name, token: userInfo.accessToken });
+          setLocalData({ 
+            isAuthenticated: true, 
+            username: userInfo.name, 
+            email: userInfo.email,
+            token: userInfo.accessToken 
+          });
         } else {
           setEnableError(true);
         }
@@ -252,7 +260,12 @@ export const Login = () => {
                 
         const userInfo = await signUpService(signUpData);
         if (userInfo) {
-          setLocalData({ isAuthenticated: true, username: userInfo.name, token: userInfo.accessToken });
+          setLocalData({ 
+            isAuthenticated: true, 
+            username: userInfo.name, 
+            email: userInfo.email,
+            token: userInfo.accessToken 
+          });
         } else {
           setEnableError(true);
         }
@@ -322,6 +335,7 @@ export const Login = () => {
               setLocalData({ 
                 isAuthenticated: true, 
                 username: userInfo.name, 
+                email: userInfo.email,
                 token: userInfo.accessToken 
               });
               // Clear forgot password state

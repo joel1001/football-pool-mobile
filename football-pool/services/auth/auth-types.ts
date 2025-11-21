@@ -27,6 +27,7 @@ export interface UserInfoProps {
     birth: Date;
     preferredTeams: string[];
     preferredLeagues: string[];
+    profileImage?: string; // Base64 string
     accessToken: string;
     refreshToken: string;
     tokenType: string;
@@ -65,6 +66,19 @@ export interface SocialAuthResponse extends UserInfoProps {
 export interface CompleteSocialProfileProps {
     preferredTeams: string[];
     preferredLeagues: string[];
+    birth?: string;
+    country?: string;
+    state?: string;
+    city?: string;
+    phone?: string;
+    zipcode?: string;
+    profileImage?: string; // Base64 string
+}
+
+export interface UpdateUserProfileProps {
+    profileImage?: string | null; // Base64 string o null para eliminar
+    name?: string;
+    lastName?: string;
     birth?: string;
     country?: string;
     state?: string;

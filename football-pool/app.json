@@ -26,7 +26,9 @@
           }
         ],
         "FacebookAppID": "764260709993014",
-        "FacebookDisplayName": "Football Pool"
+        "FacebookDisplayName": "Football Pool",
+        "NSCameraUsageDescription": "Esta app necesita acceso a la cámara para tomar tu foto de perfil.",
+        "NSPhotoLibraryUsageDescription": "Esta app necesita acceso a tu galería para seleccionar tu foto de perfil."
       }
     },
     "android": {
@@ -39,6 +41,12 @@
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
+      "permissions": [
+        "CAMERA",
+        "READ_EXTERNAL_STORAGE",
+        "WRITE_EXTERNAL_STORAGE",
+        "READ_MEDIA_IMAGES"
+      ],
       "intentFilters": [
         {
           "action": "VIEW",
@@ -67,6 +75,13 @@
           "dark": {
             "backgroundColor": "#000000"
           }
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "La app necesita acceso a tus fotos para que puedas seleccionar tu foto de perfil.",
+          "cameraPermission": "La app necesita acceso a la cámara para que puedas tomar tu foto de perfil."
         }
       ],
       "expo-asset",

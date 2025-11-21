@@ -14,8 +14,10 @@ export * from './organisms/create-group-modal';
 // Molecules
 export * from './molecules/competition-card';
 export * from './molecules/search-bar';
+export * from './molecules/profile-badge';
 
 // Atoms
 export * from './atoms/animated-background';
 export * from './atoms/animated-background-corner';
+export * from './atoms/animated-background-penalty';
 

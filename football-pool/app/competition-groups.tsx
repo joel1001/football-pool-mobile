@@ -1,0 +1,2111 @@
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Modal, TextInput, Alert } from 'react-native';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
+import { useState, useEffect } from 'react';
+import { getUserGroups, getGroupMatches, savePrediction, getMatchPrediction, getGroupPredictions, patchGroup, inviteUser } from '@/services/groups';
+import { Group, Match, Prediction } from '@/services/groups/group-types';
+import { LinearGradient } from 'expo-linear-gradient';
+import { AnimatedBackgroundPenalty, ProfileBadge } from '@/atomic';
+import { useTranslation } from 'react-i18next';
+import { useAppContext } from '@/context/app-context';
+import { getUserIdFromToken } from '@/services/services-config';
+
+export default function CompetitionGroupsScreen() {
+  const { t } = useTranslation();
+  const { localData } = useAppContext();
+  const params = useLocalSearchParams();
+  const router = useRouter();
+  const { competitionId, competitionName } = params;
+  
+  // Obtener userId: primero de localData, si no está disponible, extraerlo del token
+  const currentUserId = localData.userId || getUserIdFromToken(localData.token || null);
+  
+  const [groups, setGroups] = useState<Group[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [expandedGroupId, setExpandedGroupId] = useState<string | null>(null);
+  const [expandedMatchGroups, setExpandedMatchGroups] = useState<Set<string>>(new Set());
+  const [allMatches, setAllMatches] = useState<Match[]>([]);
+  const [loadingMatches, setLoadingMatches] = useState(false);
+  const [selectedMatch, setSelectedMatch] = useState<{ groupId: string; match: Match } | null>(null);
+  const [predictionModalVisible, setPredictionModalVisible] = useState(false);
+  const [team1Score, setTeam1Score] = useState('');
+  const [team2Score, setTeam2Score] = useState('');
+  const [savingPrediction, setSavingPrediction] = useState(false);
+  const [userPredictions, setUserPredictions] = useState<Record<string, Prediction>>({});
+  
+  // Estados para edición de monto de apuesta
+  const [editingBetAmount, setEditingBetAmount] = useState<Record<string, boolean>>({});
+  const [betAmountInputs, setBetAmountInputs] = useState<Record<string, string>>({});
+  const [savingBetAmount, setSavingBetAmount] = useState<Record<string, boolean>>({});
+  
+  // Estados para invitar usuarios
+  const [inviteEmailInputs, setInviteEmailInputs] = useState<Record<string, string>>({});
+  const [invitingUsers, setInvitingUsers] = useState<Record<string, boolean>>({});
+
+  useEffect(() => {
+    loadGroups();
+    // Asegurar que todos los grupos estén colapsados al cargar
+    setExpandedGroupId(null);
+    setExpandedMatchGroups(new Set());
+  }, [competitionId]);
+
+  // Cargar matches una sola vez cuando se cargan los grupos
+  useEffect(() => {
+    if (groups.length > 0 && allMatches.length === 0) {
+      // Cargar matches usando el primer grupo (los matches son los mismos para todos)
+      loadAllMatches(groups[0].groupId);
+    }
+    // Asegurar que todos los grupos estén colapsados cuando se cargan
+    setExpandedGroupId(null);
+    setExpandedMatchGroups(new Set());
+  }, [groups]);
+
+  const loadGroups = async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
+      const response = await getUserGroups();
+      console.log('📊 User Groups Loaded:', {
+        totalGroups: response.count,
+        competitionId,
+      });
+      
+      // Filtrar grupos solo de esta competencia
+      const filteredGroups = response.groups.filter(
+        (group) => group.competitionId === competitionId
+      );
+      
+      console.log('📊 Filtered Groups for Competition:', {
+        competitionId,
+        count: filteredGroups.length,
+      });
+      
+      // Log para debug: verificar userId del usuario actual vs creatorUserId de cada grupo
+      const currentUserIdForCheck = localData.userId || getUserIdFromToken(localData.token || null);
+      console.log('🔍 Creator Check Debug:', {
+        localDataUserId: localData.userId,
+        tokenUserId: getUserIdFromToken(localData.token || null),
+        currentUserIdForCheck,
+        localDataUserIdType: typeof localData.userId,
+        groups: filteredGroups.map(g => ({
+          groupId: g.groupId,
+          creatorUserId: g.creatorUserId,
+          creatorUserIdType: typeof g.creatorUserId,
+          isCreatorWithLocalData: g.creatorUserId === localData.userId,
+          isCreatorWithCurrentUserId: g.creatorUserId === currentUserIdForCheck,
+        })),
+      });
+      
+      setGroups(filteredGroups);
+    } catch (err: any) {
+      console.error('Error loading groups:', err);
+      setError(err.response?.data?.error || 'Error al cargar grupos');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const loadAllMatches = async (groupId: string) => {
+    if (allMatches.length > 0) {
+      return; // Ya están cargados
+    }
+
+    try {
+      setLoadingMatches(true);
+      
+      const response = await getGroupMatches(groupId);
+      console.log('⚽ Matches Loaded from API:', {
+        groupId,
+        count: response.count,
+      });
+      
+      setAllMatches(response.matches);
+      
+      // Cargar predicciones del usuario para estos matches
+      // Usar el primer grupo para cargar predicciones (son las mismas para todos)
+      loadUserPredictions(groupId, response.matches);
+    } catch (err: any) {
+      console.error('❌ Error loading matches:', {
+        groupId,
+        status: err.response?.status,
+        error: err.response?.data?.error,
+        message: err.response?.data?.message,
+        url: err.config?.url,
+      });
+      
+      // Si es error 401, el token puede haber expirado
+      if (err.response?.status === 401) {
+        Alert.alert(
+          t('common.sessionExpired'),
+          t('common.sessionExpiredMessage'),
+          [
+            {
+              text: 'OK',
+              onPress: () => {
+                // Opcional: redirigir al login
+                // router.replace('/(tabs)');
+              },
+            },
+          ]
+        );
+      }
+      
+      // Re-lanzar el error para que se propague
+      throw err;
+    } finally {
+      setLoadingMatches(false);
+    }
+  };
+
+  const loadUserPredictions = async (groupId: string, matches: Match[]) => {
+    try {
+      // Usar getGroupPredictions para obtener todas las predicciones de una vez
+      // en lugar de hacer una llamada por cada match
+      const predictionsResponse = await getGroupPredictions(groupId);
+      
+      const predictionsMap: Record<string, Prediction> = {};
+      
+      // Mapear las predicciones por matchId
+      if (predictionsResponse.predictions && predictionsResponse.predictions.length > 0) {
+        predictionsResponse.predictions.forEach((prediction) => {
+          predictionsMap[prediction.matchId] = prediction;
+        });
+      }
+      
+      setUserPredictions(prev => ({ ...prev, ...predictionsMap }));
+    } catch (err: any) {
+      // Si falla, intentar cargar predicciones individuales solo para matches visibles
+      // pero silenciar errores 500 que indican "predicción no existe"
+      console.log('⚠️ Error loading all predictions, will load individually if needed:', err.response?.status);
+      
+      // No hacer nada más - las predicciones se cargarán bajo demanda cuando el usuario
+      // intente ver/editar una predicción específica
+    }
+  };
+
+  const handleOpenPredictionModal = (groupId: string, match: Match) => {
+    if (match.isPlayed) {
+      Alert.alert(t('predictions.matchPlayed'), t('predictions.cannotPredict'));
+      return;
+    }
+
+    setSelectedMatch({ groupId, match });
+    
+    // Cargar predicción existente si hay
+    const existingPrediction = userPredictions[match.matchId];
+    if (existingPrediction) {
+      setTeam1Score(existingPrediction.team1Score.toString());
+      setTeam2Score(existingPrediction.team2Score.toString());
+    } else {
+      setTeam1Score('');
+      setTeam2Score('');
+    }
+    
+    setPredictionModalVisible(true);
+  };
+
+  // Agrupar matches por grupo (groupLetter) - solo los que tienen groupLetter
+  const matchesByGroup = allMatches
+    .filter(m => m.groupLetter) // Solo matches con grupo
+    .reduce((acc, match) => {
+      const groupLetter = match.groupLetter!;
+      if (!acc[groupLetter]) {
+        acc[groupLetter] = [];
+      }
+      acc[groupLetter].push(match);
+      return acc;
+    }, {} as Record<string, Match[]>);
+
+  // Obtener matches sin grupo (eliminatorias, etc.)
+  const matchesWithoutGroup = allMatches.filter(m => !m.groupLetter);
+
+  const handleSavePrediction = async () => {
+    if (!selectedMatch) return;
+
+    const score1 = parseInt(team1Score);
+    const score2 = parseInt(team2Score);
+
+    if (isNaN(score1) || isNaN(score2) || score1 < 0 || score2 < 0) {
+      Alert.alert(t('common.error'), t('common.invalidScores'));
+      return;
+    }
+
+    try {
+      setSavingPrediction(true);
+      await savePrediction(selectedMatch.groupId, selectedMatch.match.matchId, {
+        team1Score: score1,
+        team2Score: score2,
+      });
+
+      // Actualizar predicción local
+      const newPrediction: Prediction = {
+        groupId: selectedMatch.groupId,
+        matchId: selectedMatch.match.matchId,
+        team1Score: score1,
+        team2Score: score2,
+        predictedDate: new Date().toISOString(),
+      };
+      
+      setUserPredictions(prev => ({
+        ...prev,
+        [selectedMatch.match.matchId]: newPrediction,
+      }));
+
+      Alert.alert(t('common.success'), t('predictions.saved'));
+      setPredictionModalVisible(false);
+      setSelectedMatch(null);
+      setTeam1Score('');
+      setTeam2Score('');
+    } catch (err: any) {
+      console.error('Error saving prediction:', err);
+      Alert.alert(
+        t('common.error'),
+        err.response?.data?.error || t('predictions.error')
+      );
+    } finally {
+      setSavingPrediction(false);
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <View style={styles.container}>
+        <View style={styles.header}>
+          <TouchableOpacity
+            onPress={() => router.back()}
+            style={styles.backButton}
+          >
+            <Ionicons name="arrow-back" size={24} color="#E8F5E9" />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>{t('common.loading')}</Text>
+          <View style={styles.placeholder} />
+        </View>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#E8F5E9" />
+        </View>
+      </View>
+    );
+  }
+
+  if (error) {
+    return (
+      <View style={styles.container}>
+        <View style={styles.header}>
+          <TouchableOpacity
+            onPress={() => router.back()}
+            style={styles.backButton}
+          >
+            <Ionicons name="arrow-back" size={24} color="#E8F5E9" />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>{t('common.error')}</Text>
+          <View style={styles.placeholder} />
+        </View>
+        <View style={styles.errorContainer}>
+          <Ionicons name="alert-circle" size={48} color="#EF4444" />
+          <Text style={styles.errorText}>{error}</Text>
+          <TouchableOpacity
+            style={styles.retryButton}
+            onPress={loadGroups}
+          >
+            <Text style={styles.retryButtonText}>{t('common.retry')}</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  }
+
+  return (
+    <View style={styles.container}>
+      <AnimatedBackgroundPenalty />
+      <ProfileBadge />
+      <View style={styles.header}>
+        <TouchableOpacity
+          onPress={() => router.back()}
+          style={styles.backButton}
+        >
+          <Ionicons name="arrow-back" size={24} color="#E8F5E9" />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle} numberOfLines={1}>
+          {t('groups.title')} - {competitionName || t('groups.competition')}
+        </Text>
+        <View style={styles.placeholder} />
+      </View>
+
+      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+        <View style={styles.content}>
+          {groups.length === 0 ? (
+            <View style={styles.emptyContainer}>
+              <Ionicons name="people-outline" size={64} color="#A7F3D0" />
+              <Text style={styles.emptyText}>
+                {t('groups.noGroups')}
+              </Text>
+            </View>
+          ) : (
+            <>
+              {/* SECCIÓN 1: TABLAS DE GRUPOS */}
+              <View style={styles.sectionContainer}>
+                <Text style={styles.sectionTitle}>{t('groups.scoreboard')}</Text>
+                {groups.map((group) => {
+                  const isExpanded = expandedGroupId === group.groupId;
+                  return (
+                    <View key={group.groupId} style={styles.groupAccordion}>
+                      {/* Header del acordeón */}
+                      <TouchableOpacity
+                        style={styles.groupHeader}
+                        activeOpacity={0.8}
+                        onPress={() =>
+                          setExpandedGroupId(isExpanded ? null : group.groupId)
+                        }
+                      >
+                        <View style={styles.groupHeaderLeft}>
+                          <Ionicons name="people" size={24} color="#1A4D3A" />
+                          <Text style={styles.groupName} numberOfLines={1}>
+                            {group.name || group.competitionName}
+                          </Text>
+                        </View>
+                        <Ionicons
+                          name={isExpanded ? 'chevron-up' : 'chevron-down'}
+                          size={20}
+                          color="#1A4D3A"
+                        />
+                      </TouchableOpacity>
+
+                      {/* Contenido expandido: información del grupo y tabla */}
+                      {isExpanded && (
+                        <View style={styles.expandedContent}>
+                          {/* Información del grupo */}
+                          <View style={styles.groupInfoSection}>
+                            <Text style={styles.groupInfoTitle}>{t('groups.groupInfo')}</Text>
+                            
+                            <View style={styles.infoRow}>
+                              <Ionicons name="trophy" size={18} color="#1A4D3A" />
+                              <Text style={styles.infoLabel}>{t('groups.competition')}:</Text>
+                              <Text style={styles.infoValue}>{group.competitionName}</Text>
+                            </View>
+
+                            {group.name && (
+                              <View style={styles.infoRow}>
+                                <Ionicons name="people" size={18} color="#1A4D3A" />
+                                <Text style={styles.infoLabel}>{t('groups.groupName')}:</Text>
+                                <Text style={styles.infoValue}>{group.name}</Text>
+                              </View>
+                            )}
+
+                            <View style={styles.participantsSection}>
+                              <View style={styles.infoRow}>
+                                <Ionicons name="person" size={18} color="#1A4D3A" />
+                                <Text style={styles.infoLabel}>{t('groups.participants')} ({group.userIds?.length || 0}):</Text>
+                              </View>
+                              {(() => {
+                                // Crear un mapa de userId -> información del usuario
+                                const userMap = new Map<string, { name?: string; email?: string; userId: string }>();
+                                
+                                // Primero, agregar usuarios del campo `users` si existe
+                                if (group.users && group.users.length > 0) {
+                                  group.users.forEach(user => {
+                                    userMap.set(user.userId, {
+                                      name: user.name,
+                                      email: user.email,
+                                      userId: user.userId,
+                                    });
+                                  });
+                                }
+                                
+                                // Si tenemos userPayments, usar eso como fallback para obtener emails
+                                if (group.userPayments) {
+                                  Object.values(group.userPayments).forEach(payment => {
+                                    if (!userMap.has(payment.userId)) {
+                                      userMap.set(payment.userId, {
+                                        email: payment.userEmail,
+                                        userId: payment.userId,
+                                      });
+                                    } else {
+                                      // Si ya existe pero no tiene email, agregarlo
+                                      const existing = userMap.get(payment.userId)!;
+                                      if (!existing.email && payment.userEmail) {
+                                        existing.email = payment.userEmail;
+                                      }
+                                    }
+                                  });
+                                }
+                                
+                                // Si tenemos userIds pero no usuarios completos, intentar usar el mapa
+                                const participantIds = group.userIds || [];
+                                const participants = participantIds.map(userId => {
+                                  const userInfo = userMap.get(userId);
+                                  
+                                  // Determinar el nombre a mostrar: nombre > email (sin @domain) > userId
+                                  let displayName = userInfo?.name;
+                                  if (!displayName && userInfo?.email) {
+                                    // Extraer la parte antes del @ del email como nombre
+                                    const emailParts = userInfo.email.split('@');
+                                    displayName = emailParts[0] || userInfo.email;
+                                  }
+                                  if (!displayName) {
+                                    // Si no hay nombre ni email, usar el userId pero truncado
+                                    displayName = userId.length > 12 ? `${userId.substring(0, 10)}...` : userId;
+                                  }
+                                  
+                                  return {
+                                    userId,
+                                    name: userInfo?.name,
+                                    email: userInfo?.email,
+                                    displayName,
+                                  };
+                                });
+                                
+                                if (participants.length > 0) {
+                                  return (
+                                    <View style={styles.participantsList}>
+                                      {participants.map((participant) => (
+                                        <View key={participant.userId} style={styles.participantItem}>
+                                          <Ionicons name="person-circle" size={16} color="#1A4D3A" />
+                                          <Text style={styles.participantName}>
+                                            {participant.displayName}
+                                          </Text>
+                                          {participant.userId === group.creatorUserId && (
+                                            <View style={styles.creatorBadge}>
+                                              <Text style={styles.creatorBadgeText}>
+                                                {t('groups.creator')}
+                                              </Text>
+                                            </View>
+                                          )}
+                                        </View>
+                                      ))}
+                                    </View>
+                                  );
+                                }
+                                
+                                return (
+                                  <Text style={styles.noParticipantsText}>{t('groups.noParticipants')}</Text>
+                                );
+                              })()}
+                            </View>
+
+                            {group.invitedEmails && group.invitedEmails.length > 0 && (
+                              <View style={styles.infoRow}>
+                                <Ionicons name="mail" size={18} color="#1A4D3A" />
+                                <Text style={styles.infoLabel}>{t('groups.invitedEmails')}:</Text>
+                                <Text style={styles.infoValue}>
+                                  {group.invitedEmails.length}
+                                </Text>
+                              </View>
+                            )}
+
+                            {/* Botón para invitar usuarios (solo creador) */}
+                            {group.creatorUserId === currentUserId && (
+                              <View style={styles.inviteSection}>
+                                <TextInput
+                                  style={styles.inviteEmailInput}
+                                  placeholder={t('groups.inviteEmailPlaceholder')}
+                                  placeholderTextColor="rgba(26, 77, 58, 0.4)"
+                                  value={inviteEmailInputs[group.groupId] || ''}
+                                  onChangeText={(text) => {
+                                    setInviteEmailInputs(prev => ({
+                                      ...prev,
+                                      [group.groupId]: text.trim(),
+                                    }));
+                                  }}
+                                  keyboardType="email-address"
+                                  autoCapitalize="none"
+                                  autoCorrect={false}
+                                />
+                                <TouchableOpacity
+                                  onPress={async () => {
+                                    const email = inviteEmailInputs[group.groupId]?.trim();
+                                    if (!email) {
+                                      Alert.alert(
+                                        t('common.error'),
+                                        t('groups.emailRequired')
+                                      );
+                                      return;
+                                    }
+                                    
+                                    // Validar formato de email básico
+                                    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+                                    if (!emailRegex.test(email)) {
+                                      Alert.alert(
+                                        t('common.error'),
+                                        t('groups.invalidEmailFormat')
+                                      );
+                                      return;
+                                    }
+
+                                    try {
+                                      setInvitingUsers(prev => ({ ...prev, [group.groupId]: true }));
+                                      await inviteUser(group.groupId, { email });
+                                      
+                                      // Limpiar input
+                                      setInviteEmailInputs(prev => {
+                                        const newInputs = { ...prev };
+                                        delete newInputs[group.groupId];
+                                        return newInputs;
+                                      });
+                                      
+                                      // Recargar grupos para obtener la actualización
+                                      await loadGroups();
+                                      
+                                      Alert.alert(
+                                        t('common.success'),
+                                        t('groups.invitationSent', { email })
+                                      );
+                                    } catch (err: any) {
+                                      console.error('Error inviting user:', err);
+                                      Alert.alert(
+                                        t('common.error'),
+                                        err.response?.data?.error || t('groups.invitationError')
+                                      );
+                                    } finally {
+                                      setInvitingUsers(prev => ({ ...prev, [group.groupId]: false }));
+                                    }
+                                  }}
+                                  disabled={invitingUsers[group.groupId] || !inviteEmailInputs[group.groupId]?.trim()}
+                                  style={[
+                                    styles.inviteButton,
+                                    (invitingUsers[group.groupId] || !inviteEmailInputs[group.groupId]?.trim()) && styles.inviteButtonDisabled
+                                  ]}
+                                >
+                                  {invitingUsers[group.groupId] ? (
+                                    <ActivityIndicator size="small" color="#FFFFFF" />
+                                  ) : (
+                                    <>
+                                      <Ionicons name="person-add" size={16} color="#FFFFFF" />
+                                      <Text style={styles.inviteButtonText}>{t('groups.inviteUser')}</Text>
+                                    </>
+                                  )}
+                                </TouchableOpacity>
+                              </View>
+                            )}
+
+                            {group.createdAt && (
+                              <View style={styles.infoRow}>
+                                <Ionicons name="calendar" size={18} color="#1A4D3A" />
+                                <Text style={styles.infoLabel}>{t('groups.created')}:</Text>
+                                <Text style={styles.infoValue}>
+                                  {new Date(group.createdAt).toLocaleDateString('es-ES', {
+                                    day: 'numeric',
+                                    month: 'short',
+                                    year: 'numeric',
+                                  })}
+                                </Text>
+                              </View>
+                            )}
+                          </View>
+
+                          {/* Sección de Información de Apuestas */}
+                          <View style={styles.bettingSection}>
+                            <View style={styles.bettingHeader}>
+                              <View style={styles.bettingHeaderLeft}>
+                                <Ionicons name="cash" size={20} color="#1A4D3A" />
+                                <Text style={styles.bettingTitle}>{t('groups.bettingInfo')}</Text>
+                              </View>
+                              {(() => {
+                                const isCreator = group.creatorUserId === currentUserId;
+                                return isCreator;
+                              })() && !editingBetAmount[group.groupId] && (
+                                <TouchableOpacity
+                                  onPress={() => {
+                                    setEditingBetAmount(prev => ({ ...prev, [group.groupId]: true }));
+                                    setBetAmountInputs(prev => ({
+                                      ...prev,
+                                      [group.groupId]: group.totalBetAmount?.toString() || '',
+                                    }));
+                                  }}
+                                  style={styles.editBetButton}
+                                >
+                                  <Ionicons name="create-outline" size={18} color="#10B981" />
+                                  <Text style={styles.editBetButtonText}>{t('groups.editBetAmount')}</Text>
+                                </TouchableOpacity>
+                              )}
+                            </View>
+
+                            {editingBetAmount[group.groupId] ? (
+                              <View style={styles.bettingEditContainer}>
+                                <View style={styles.betAmountInputContainer}>
+                                  <Text style={styles.currencySymbol}>$</Text>
+                                  <TextInput
+                                    style={styles.betAmountInput}
+                                    value={betAmountInputs[group.groupId] || ''}
+                                    onChangeText={(text) => {
+                                      const numericValue = text.replace(/[^0-9.]/g, '');
+                                      const parts = numericValue.split('.');
+                                      const formattedValue = parts.length > 2 
+                                        ? parts[0] + '.' + parts.slice(1).join('')
+                                        : numericValue;
+                                      setBetAmountInputs(prev => ({
+                                        ...prev,
+                                        [group.groupId]: formattedValue,
+                                      }));
+                                    }}
+                                    placeholder={t('groups.betAmountPlaceholder')}
+                                    placeholderTextColor="rgba(26, 77, 58, 0.4)"
+                                    keyboardType="decimal-pad"
+                                    maxLength={10}
+                                  />
+                                </View>
+                                <View style={styles.betAmountActions}>
+                                  <TouchableOpacity
+                                    onPress={async () => {
+                                      const newAmount = parseFloat(betAmountInputs[group.groupId] || '0');
+                                      if (isNaN(newAmount) || newAmount <= 0) {
+                                        Alert.alert(
+                                          t('common.error'),
+                                          t('groups.invalidBetAmount')
+                                        );
+                                        return;
+                                      }
+
+                                      // Validar monto mínimo total fijo de $50 (se divide entre todos los participantes)
+                                      const MINIMUM_TOTAL_BET_AMOUNT = 50;
+                                      
+                                      if (newAmount < MINIMUM_TOTAL_BET_AMOUNT) {
+                                        Alert.alert(
+                                          t('createGroupModal.minimumAmountError'),
+                                          t('createGroupModal.minimumAmountMessage', {
+                                            minimum: MINIMUM_TOTAL_BET_AMOUNT
+                                          })
+                                        );
+                                        return;
+                                      }
+
+                                      try {
+                                        setSavingBetAmount(prev => ({ ...prev, [group.groupId]: true }));
+                                        const response = await patchGroup(group.groupId, { totalBetAmount: newAmount });
+                                        
+                                        // Actualizar el grupo localmente con la respuesta del backend
+                                        setGroups(prev => prev.map(g => 
+                                          g.groupId === group.groupId 
+                                            ? { 
+                                                ...g, 
+                                                totalBetAmount: response.group.totalBetAmount,
+                                                equitableAmountPerUser: response.group.equitableAmountPerUser
+                                              }
+                                            : g
+                                        ));
+                                        
+                                        setEditingBetAmount(prev => ({ ...prev, [group.groupId]: false }));
+                                        Alert.alert(t('common.success'), t('groups.betAmountUpdated'));
+                                      } catch (err: any) {
+                                        console.error('Error updating bet amount:', err);
+                                        Alert.alert(
+                                          t('common.error'),
+                                          err.response?.data?.error || t('groups.betAmountUpdateError')
+                                        );
+                                      } finally {
+                                        setSavingBetAmount(prev => ({ ...prev, [group.groupId]: false }));
+                                      }
+                                    }}
+                                    disabled={savingBetAmount[group.groupId]}
+                                    style={[styles.saveBetButton, savingBetAmount[group.groupId] && styles.saveBetButtonDisabled]}
+                                  >
+                                    <Text style={styles.saveBetButtonText}>
+                                      {savingBetAmount[group.groupId] ? t('common.saving') : t('common.save')}
+                                    </Text>
+                                  </TouchableOpacity>
+                                  <TouchableOpacity
+                                    onPress={() => {
+                                      setEditingBetAmount(prev => ({ ...prev, [group.groupId]: false }));
+                                      setBetAmountInputs(prev => {
+                                        const newInputs = { ...prev };
+                                        delete newInputs[group.groupId];
+                                        return newInputs;
+                                      });
+                                    }}
+                                    style={styles.cancelBetButton}
+                                  >
+                                    <Text style={styles.cancelBetButtonText}>{t('common.cancel')}</Text>
+                                  </TouchableOpacity>
+                                </View>
+                              </View>
+                            ) : (
+                              <>
+                                <View style={styles.bettingInfoRow}>
+                                  <Text style={styles.bettingLabel}>{t('groups.totalBetAmount')}:</Text>
+                                  <Text style={styles.bettingValue}>
+                                    ${group.totalBetAmount?.toFixed(2) || '0.00'}
+                                  </Text>
+                                </View>
+
+                                {(group.equitableAmountPerUser || (group.totalBetAmount && group.totalBetAmount > 0 && group.userIds && group.userIds.length > 0)) && (
+                                  <View style={styles.bettingInfoRow}>
+                                    <Text style={styles.bettingLabel}>{t('groups.betPerUser')}:</Text>
+                                    <Text style={styles.bettingValue}>
+                                      ${(group.equitableAmountPerUser || (group.totalBetAmount! / (group.userIds?.length || 1))).toFixed(2)}
+                                    </Text>
+                                  </View>
+                                )}
+
+                                {group.paymentDeadline && (
+                                  <>
+                                    <View style={styles.bettingInfoRow}>
+                                      <Text style={styles.bettingLabel}>{t('groups.paymentDeadline')}:</Text>
+                                      <Text style={[
+                                        styles.bettingValue,
+                                        new Date() > new Date(group.paymentDeadline) && styles.bettingValueExpired
+                                      ]}>
+                                        {new Date(group.paymentDeadline).toLocaleDateString('es-ES', {
+                                          year: 'numeric',
+                                          month: 'long',
+                                          day: 'numeric',
+                                        })}
+                                      </Text>
+                                    </View>
+
+                                    {(() => {
+                                      const deadline = new Date(group.paymentDeadline);
+                                      const now = new Date();
+                                      const daysLeft = Math.ceil((deadline.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+                                      
+                                      if (now > deadline) {
+                                        return (
+                                          <View style={styles.bettingWarning}>
+                                            <Ionicons name="alert-circle" size={16} color="#EF4444" />
+                                            <Text style={styles.bettingWarningText}>
+                                              {t('groups.deadlinePassed')}
+                                            </Text>
+                                          </View>
+                                        );
+                                      } else if (daysLeft <= 7) {
+                                        return (
+                                          <View style={styles.bettingWarning}>
+                                            <Ionicons name="time-outline" size={16} color="#F97316" />
+                                            <Text style={styles.bettingWarningText}>
+                                              {t('groups.daysLeft', { days: daysLeft })}
+                                            </Text>
+                                          </View>
+                                        );
+                                      }
+                                      return null;
+                                    })()}
+                                  </>
+                                )}
+
+                                {!group.paymentDeadline && (
+                                  <View style={styles.bettingWarning}>
+                                    <Ionicons name="information-circle-outline" size={16} color="#6B7280" />
+                                    <Text style={styles.bettingWarningText}>
+                                      {t('groups.noDeadline')}
+                                    </Text>
+                                  </View>
+                                )}
+                              </>
+                            )}
+                          </View>
+
+                          {/* Tabla de posiciones (solo si tiene datos) */}
+                          {group.scoreboard &&
+                            group.scoreboard.teams &&
+                            group.scoreboard.teams.length > 0 && (
+                              <View style={styles.tableWrapper}>
+                                <View style={styles.tableHeader}>
+                                  <Text style={styles.tableTitle}>{t('groups.scoreboard')}</Text>
+                                  {group.creatorUserId === currentUserId && (
+                                    <TouchableOpacity
+                                      onPress={() => {
+                                        setEditingBetAmount(prev => ({ ...prev, [group.groupId]: true }));
+                                        setBetAmountInputs(prev => ({
+                                          ...prev,
+                                          [group.groupId]: group.totalBetAmount?.toString() || '',
+                                        }));
+                                      }}
+                                      style={styles.editBetAmountButton}
+                                      disabled={editingBetAmount[group.groupId]}
+                                    >
+                                      <Ionicons name="cash-outline" size={18} color="#10B981" />
+                                      <Text style={styles.editBetAmountButtonText}>
+                                        {t('groups.editBetAmount')}
+                                      </Text>
+                                    </TouchableOpacity>
+                                  )}
+                                </View>
+                                <View style={styles.table}>
+                                  {/* Encabezados */}
+                                  <View style={[styles.tableRow, styles.tableHeaderRow]}>
+                                    <View style={[styles.tableCell, styles.tableCellPosition]}>
+                                      <Text style={styles.tableHeaderText}>#</Text>
+                                    </View>
+                                    <View style={[styles.tableCell, styles.tableCellTeam]}>
+                                      <Text style={styles.tableHeaderText}>{t('groups.team')}</Text>
+                                    </View>
+                                    <Text style={[styles.tableCell, styles.tableCellStat, styles.tableHeaderText]}>PJ</Text>
+                                    <Text style={[styles.tableCell, styles.tableCellStat, styles.tableHeaderText]}>G</Text>
+                                    <Text style={[styles.tableCell, styles.tableCellStat, styles.tableHeaderText]}>E</Text>
+                                    <Text style={[styles.tableCell, styles.tableCellStat, styles.tableHeaderText]}>P</Text>
+                                    <Text style={[styles.tableCell, styles.tableCellStat, styles.tableHeaderText]}>GF</Text>
+                                    <Text style={[styles.tableCell, styles.tableCellStat, styles.tableHeaderText]}>GC</Text>
+                                    <Text style={[styles.tableCell, styles.tableCellStat, styles.tableHeaderText]}>DG</Text>
+                                    <Text style={[styles.tableCell, styles.tableCellPoints, styles.tableHeaderText]}>Pts</Text>
+                                  </View>
+
+                                  {/* Filas de datos */}
+                                  {group.scoreboard.teams.map((team, index) => {
+                                    const isQualified = team.position <= 2;
+                                    const isEvenRow = index % 2 === 0;
+                                    return (
+                                      <View 
+                                        key={team.teamId} 
+                                        style={[
+                                          styles.tableRow,
+                                          isEvenRow && styles.tableRowEven,
+                                          isQualified && styles.tableRowQualified,
+                                        ]}
+                                      >
+                                        <View style={styles.tableCellPosition}>
+                                          <View style={[
+                                            styles.positionBadge,
+                                            team.position === 1 && styles.positionBadgeGold,
+                                            team.position === 2 && styles.positionBadgeSilver,
+                                            team.position === 3 && styles.positionBadgeBronze,
+                                          ]}>
+                                            <Text style={[
+                                              styles.positionText,
+                                              (team.position <= 3) && styles.positionTextHighlight
+                                            ]}>
+                                              {team.position}
+                                            </Text>
+                                          </View>
+                                        </View>
+                                        <View style={[styles.tableCell, styles.tableCellTeam]}>
+                                          {team.teamFlag && (
+                                            <Text style={styles.teamFlag}>{team.teamFlag}</Text>
+                                          )}
+                                          <Text
+                                            style={[
+                                              styles.tableCellTeamText,
+                                              isQualified && styles.tableCellTeamTextQualified,
+                                            ]}
+                                            numberOfLines={1}
+                                          >
+                                            {team.teamName}
+                                          </Text>
+                                        </View>
+                                        <Text style={[styles.tableCell, styles.tableCellStat]}>{team.played}</Text>
+                                        <Text style={[styles.tableCell, styles.tableCellStat, styles.tableCellWin]}>{team.won}</Text>
+                                        <Text style={[styles.tableCell, styles.tableCellStat]}>{team.drawn}</Text>
+                                        <Text style={[styles.tableCell, styles.tableCellStat, styles.tableCellLoss]}>{team.lost}</Text>
+                                        <Text style={[styles.tableCell, styles.tableCellStat]}>{team.goalsFor}</Text>
+                                        <Text style={[styles.tableCell, styles.tableCellStat]}>{team.goalsAgainst}</Text>
+                                        <Text style={[
+                                          styles.tableCell,
+                                          styles.tableCellStat,
+                                          team.goalDifference > 0 && styles.tableCellPositive,
+                                          team.goalDifference < 0 && styles.tableCellNegative,
+                                        ]}>
+                                          {team.goalDifference > 0 ? '+' : ''}{team.goalDifference}
+                                        </Text>
+                                        <Text style={[
+                                          styles.tableCell,
+                                          styles.tableCellPoints,
+                                          isQualified && styles.tableCellPointsQualified,
+                                        ]}>
+                                          {team.points}
+                                        </Text>
+                                      </View>
+                                    );
+                                  })}
+                                </View>
+                              </View>
+                            )}
+                          
+                          {/* Mensaje si no hay datos en la tabla */}
+                          {(!group.scoreboard ||
+                            !group.scoreboard.teams ||
+                            group.scoreboard.teams.length === 0) && (
+                            <View style={styles.emptyTableContainer}>
+                              <Ionicons name="stats-chart" size={32} color="#A7F3D0" />
+                              <Text style={styles.emptyTableText}>
+                                {t('groups.tableWillAppear')}
+                              </Text>
+                            </View>
+                          )}
+                        </View>
+                      )}
+                    </View>
+                  );
+                })}
+              </View>
+
+              {/* SECCIÓN 2: PARTIDOS (separada, agrupada por grupos) */}
+              <View style={styles.sectionContainer}>
+                <Text style={styles.sectionTitle}>{t('matches.title')}</Text>
+                {loadingMatches ? (
+                  <View style={styles.matchesLoadingContainer}>
+                    <ActivityIndicator size="small" color="#1A4D3A" />
+                    <Text style={styles.matchesLoadingText}>{t('matches.loading')}</Text>
+                  </View>
+                ) : allMatches.length > 0 ? (
+                  <>
+                    {/* Partidos agrupados por grupo */}
+                    {Object.entries(matchesByGroup).map(([groupLetter, matches]) => {
+                      const isMatchGroupExpanded = expandedMatchGroups.has(groupLetter);
+                      return (
+                        <View key={groupLetter} style={styles.groupMatchesSection}>
+                          <TouchableOpacity
+                            style={styles.groupMatchesHeader}
+                            onPress={() => {
+                              const newSet = new Set(expandedMatchGroups);
+                              if (isMatchGroupExpanded) {
+                                newSet.delete(groupLetter);
+                              } else {
+                                newSet.add(groupLetter);
+                              }
+                              setExpandedMatchGroups(newSet);
+                            }}
+                            activeOpacity={0.8}
+                          >
+                            <Ionicons name="list" size={20} color="#1A4D3A" />
+                            <Text style={styles.groupMatchesTitle}>{t('matches.group')} {groupLetter}</Text>
+                            <Ionicons
+                              name={isMatchGroupExpanded ? 'chevron-up' : 'chevron-down'}
+                              size={18}
+                              color="#1A4D3A"
+                            />
+                          </TouchableOpacity>
+                          {isMatchGroupExpanded && (
+                            <View style={styles.matchesList}>
+                          {matches.map((match) => {
+                            const userPrediction = userPredictions[match.matchId];
+                            // Usar el primer grupo para las predicciones (son las mismas para todos)
+                            const firstGroupId = groups[0]?.groupId || '';
+                            return (
+                              <View key={match.matchId} style={styles.matchCard}>
+                                <View style={styles.matchHeader}>
+                                  <Text style={styles.matchNumber}>{t('matches.match')} {match.matchNumber}</Text>
+                                  {match.matchday && (
+                                    <Text style={styles.matchDay}>{t('matches.matchday')} {match.matchday}</Text>
+                                  )}
+                                </View>
+                                
+                                <View style={styles.matchTeams}>
+                                  <View style={styles.matchTeam}>
+                                    <Text style={styles.matchTeamFlag}>{match.team1Flag}</Text>
+                                    <Text style={styles.matchTeamName} numberOfLines={1}>
+                                      {match.team1Name}
+                                    </Text>
+                                  </View>
+                                  
+                                  <View style={styles.matchScore}>
+                                    {/* Mostrar marcador real si existe */}
+                                    {match.team1Score !== null && match.team2Score !== null ? (
+                                      <>
+                                        <Text style={styles.realScoreLabel}>{t('matches.realResult')}</Text>
+                                        <Text style={styles.matchScoreText}>
+                                          {match.team1Score} - {match.team2Score}
+                                        </Text>
+                                        {userPrediction && (
+                                          <Text style={styles.predictionBadge}>
+                                            {t('matches.yourPrediction')}: {userPrediction.team1Score} - {userPrediction.team2Score}
+                                          </Text>
+                                        )}
+                                      </>
+                                    ) : (
+                                      <>
+                                        <Text style={styles.matchScoreText}>{t('matches.vs')}</Text>
+                                        {userPrediction && (
+                                          <Text style={styles.predictionBadge}>
+                                            {t('matches.prediction')}: {userPrediction.team1Score} - {userPrediction.team2Score}
+                                          </Text>
+                                        )}
+                                      </>
+                                    )}
+                                  </View>
+                                  
+                                  <View style={styles.matchTeam}>
+                                    <Text style={styles.matchTeamFlag}>{match.team2Flag}</Text>
+                                    <Text style={styles.matchTeamName} numberOfLines={1}>
+                                      {match.team2Name}
+                                    </Text>
+                                  </View>
+                                </View>
+
+                                {!match.isPlayed && (
+                                  <TouchableOpacity
+                                    style={styles.detailsButton}
+                                    onPress={() => handleOpenPredictionModal(firstGroupId, match)}
+                                    activeOpacity={0.8}
+                                  >
+                                    <LinearGradient
+                                      colors={['#10B981', '#059669']}
+                                      start={{ x: 0, y: 0 }}
+                                      end={{ x: 1, y: 0 }}
+                                      style={styles.detailsButtonGradient}
+                                    >
+                                      <Ionicons name="create-outline" size={16} color="#FFFFFF" />
+                                      <Text style={styles.detailsButtonText}>
+                                        {userPrediction ? t('matches.editPrediction') : t('common.details')}
+                                      </Text>
+                                    </LinearGradient>
+                                  </TouchableOpacity>
+                                )}
+                              </View>
+                            );
+                          })}
+                            </View>
+                          )}
+                        </View>
+                      );
+                    })}
+
+                    {/* Partidos sin grupo (eliminatorias, etc.) */}
+                    {matchesWithoutGroup.length > 0 && (() => {
+                      const isEliminationsExpanded = expandedMatchGroups.has('eliminations');
+                      return (
+                        <View style={styles.groupMatchesSection}>
+                          <TouchableOpacity
+                            style={styles.groupMatchesHeader}
+                            onPress={() => {
+                              const newSet = new Set(expandedMatchGroups);
+                              if (isEliminationsExpanded) {
+                                newSet.delete('eliminations');
+                              } else {
+                                newSet.add('eliminations');
+                              }
+                              setExpandedMatchGroups(newSet);
+                            }}
+                            activeOpacity={0.8}
+                          >
+                            <Ionicons name="trophy" size={20} color="#1A4D3A" />
+                            <Text style={styles.groupMatchesTitle}>{t('matches.eliminations')}</Text>
+                            <Ionicons
+                              name={isEliminationsExpanded ? 'chevron-up' : 'chevron-down'}
+                              size={18}
+                              color="#1A4D3A"
+                            />
+                          </TouchableOpacity>
+                          {isEliminationsExpanded && (
+                            <View style={styles.matchesList}>
+                          {matchesWithoutGroup.map((match) => {
+                            const userPrediction = userPredictions[match.matchId];
+                            const firstGroupId = groups[0]?.groupId || '';
+                            return (
+                              <View key={match.matchId} style={styles.matchCard}>
+                                <View style={styles.matchHeader}>
+                                  <Text style={styles.matchNumber}>Partido {match.matchNumber}</Text>
+                                  {match.stageId && (
+                                    <Text style={styles.matchDay}>{match.stageId}</Text>
+                                  )}
+                                </View>
+                                
+                                <View style={styles.matchTeams}>
+                                  <View style={styles.matchTeam}>
+                                    <Text style={styles.matchTeamFlag}>{match.team1Flag}</Text>
+                                    <Text style={styles.matchTeamName} numberOfLines={1}>
+                                      {match.team1Name}
+                                    </Text>
+                                  </View>
+                                  
+                                  <View style={styles.matchScore}>
+                                    {/* Mostrar marcador real si existe */}
+                                    {match.team1Score !== null && match.team2Score !== null ? (
+                                      <>
+                                        <Text style={styles.realScoreLabel}>{t('matches.realResult')}</Text>
+                                        <Text style={styles.matchScoreText}>
+                                          {match.team1Score} - {match.team2Score}
+                                        </Text>
+                                        {userPrediction && (
+                                          <Text style={styles.predictionBadge}>
+                                            {t('matches.yourPrediction')}: {userPrediction.team1Score} - {userPrediction.team2Score}
+                                          </Text>
+                                        )}
+                                      </>
+                                    ) : (
+                                      <>
+                                        <Text style={styles.matchScoreText}>{t('matches.vs')}</Text>
+                                        {userPrediction && (
+                                          <Text style={styles.predictionBadge}>
+                                            {t('matches.prediction')}: {userPrediction.team1Score} - {userPrediction.team2Score}
+                                          </Text>
+                                        )}
+                                      </>
+                                    )}
+                                  </View>
+                                  
+                                  <View style={styles.matchTeam}>
+                                    <Text style={styles.matchTeamFlag}>{match.team2Flag}</Text>
+                                    <Text style={styles.matchTeamName} numberOfLines={1}>
+                                      {match.team2Name}
+                                    </Text>
+                                  </View>
+                                </View>
+
+                                {!match.isPlayed && (
+                                  <TouchableOpacity
+                                    style={styles.detailsButton}
+                                    onPress={() => handleOpenPredictionModal(firstGroupId, match)}
+                                    activeOpacity={0.8}
+                                  >
+                                    <LinearGradient
+                                      colors={['#10B981', '#059669']}
+                                      start={{ x: 0, y: 0 }}
+                                      end={{ x: 1, y: 0 }}
+                                      style={styles.detailsButtonGradient}
+                                    >
+                                      <Ionicons name="create-outline" size={16} color="#FFFFFF" />
+                                      <Text style={styles.detailsButtonText}>
+                                        {userPrediction ? t('matches.editPrediction') : t('common.details')}
+                                      </Text>
+                                    </LinearGradient>
+                                  </TouchableOpacity>
+                                )}
+                              </View>
+                            );
+                          })}
+                            </View>
+                          )}
+                        </View>
+                      );
+                    })()}
+                  </>
+                ) : (
+                  <View style={styles.emptyMatchesContainer}>
+                    <Ionicons name="football-outline" size={32} color="#A7F3D0" />
+                    <Text style={styles.emptyMatchesText}>
+                      {t('matches.noMatches')}
+                    </Text>
+                  </View>
+                )}
+              </View>
+            </>
+          )}
+        </View>
+      </ScrollView>
+
+      {/* Modal de Predicción */}
+      <Modal
+        visible={predictionModalVisible}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => {
+          setPredictionModalVisible(false);
+          setSelectedMatch(null);
+          setTeam1Score('');
+          setTeam2Score('');
+        }}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>{t('predictions.title')}</Text>
+              <TouchableOpacity
+                onPress={() => {
+                  setPredictionModalVisible(false);
+                  setSelectedMatch(null);
+                  setTeam1Score('');
+                  setTeam2Score('');
+                }}
+                style={styles.modalCloseButton}
+              >
+                <Ionicons name="close" size={24} color="#1A4D3A" />
+              </TouchableOpacity>
+            </View>
+
+            {selectedMatch && (
+              <>
+                <View style={styles.modalMatchInfo}>
+                  <View style={styles.modalTeam}>
+                    <Text style={styles.modalTeamFlag}>{selectedMatch.match.team1Flag}</Text>
+                    <Text style={styles.modalTeamName}>{selectedMatch.match.team1Name}</Text>
+                  </View>
+                  <Text style={styles.modalVs}>{t('matches.vs')}</Text>
+                  <View style={styles.modalTeam}>
+                    <Text style={styles.modalTeamFlag}>{selectedMatch.match.team2Flag}</Text>
+                    <Text style={styles.modalTeamName}>{selectedMatch.match.team2Name}</Text>
+                  </View>
+                </View>
+
+                <View style={styles.modalInputsContainer}>
+                  <View style={styles.modalInputGroup}>
+                    <Text style={styles.modalInputLabel}>{selectedMatch.match.team1Name} ({t('predictions.team1')})</Text>
+                    <TextInput
+                      style={styles.modalInput}
+                      value={team1Score}
+                      onChangeText={setTeam1Score}
+                      placeholder="0"
+                      keyboardType="number-pad"
+                      maxLength={2}
+                    />
+                  </View>
+
+                  <Text style={styles.modalInputSeparator}>-</Text>
+
+                  <View style={styles.modalInputGroup}>
+                    <Text style={styles.modalInputLabel}>{selectedMatch.match.team2Name} ({t('predictions.team2')})</Text>
+                    <TextInput
+                      style={styles.modalInput}
+                      value={team2Score}
+                      onChangeText={setTeam2Score}
+                      placeholder="0"
+                      keyboardType="number-pad"
+                      maxLength={2}
+                    />
+                  </View>
+                </View>
+
+                <TouchableOpacity
+                  style={styles.modalSaveButton}
+                  onPress={handleSavePrediction}
+                  disabled={savingPrediction}
+                  activeOpacity={0.8}
+                >
+                  <LinearGradient
+                    colors={['#10B981', '#059669']}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 0 }}
+                    style={styles.modalSaveButtonGradient}
+                  >
+                    {savingPrediction ? (
+                      <ActivityIndicator size="small" color="#FFFFFF" />
+                    ) : (
+                      <>
+                        <Ionicons name="checkmark-circle" size={20} color="#FFFFFF" />
+                        <Text style={styles.modalSaveButtonText}>{t('predictions.savePrediction')}</Text>
+                      </>
+                    )}
+                  </LinearGradient>
+                </TouchableOpacity>
+              </>
+            )}
+          </View>
+        </View>
+      </Modal>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#1A4D3A',
+  },
+  header: {
+    position: 'relative',
+    zIndex: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingTop: 60,
+    paddingBottom: 16,
+    backgroundColor: '#1A4D3A',
+  },
+  backButton: {
+    width: 40,
+    height: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  headerTitle: {
+    flex: 1,
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#E8F5E9',
+    textAlign: 'center',
+    marginHorizontal: 8,
+  },
+  placeholder: {
+    width: 40,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  errorContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 32,
+  },
+  errorText: {
+    fontSize: 16,
+    color: '#E8F5E9',
+    textAlign: 'center',
+    marginTop: 16,
+    marginBottom: 24,
+  },
+  retryButton: {
+    backgroundColor: '#10B981',
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 8,
+  },
+  retryButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  scrollView: {
+    flex: 1,
+    position: 'relative',
+    zIndex: 10,
+  },
+  content: {
+    padding: 16,
+    position: 'relative',
+    zIndex: 10,
+  },
+  emptyContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 48,
+  },
+  emptyText: {
+    fontSize: 16,
+    color: '#E8F5E9',
+    textAlign: 'center',
+    marginTop: 16,
+  },
+  sectionContainer: {
+    marginBottom: 32,
+  },
+  sectionTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#E8F5E9',
+    marginBottom: 16,
+    paddingHorizontal: 4,
+  },
+  groupAccordion: {
+    marginBottom: 16,
+    backgroundColor: 'rgba(232, 245, 233, 0.85)',
+    borderRadius: 12,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.2,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  groupHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 16,
+    backgroundColor: 'rgba(232, 245, 233, 0.95)',
+  },
+  groupHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    gap: 12,
+  },
+  groupName: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1A4D3A',
+    flex: 1,
+  },
+  expandedContent: {
+    padding: 16,
+  },
+  groupInfoSection: {
+    marginBottom: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    borderRadius: 8,
+    padding: 16,
+  },
+  groupInfoTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#1A4D3A',
+    marginBottom: 12,
+  },
+  infoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 10,
+    gap: 8,
+  },
+  infoLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#1A4D3A',
+    minWidth: 120,
+  },
+  infoValue: {
+    fontSize: 13,
+    color: '#1A4D3A',
+    flex: 1,
+    fontWeight: '500',
+  },
+  participantsSection: {
+    marginTop: 4,
+  },
+  participantsList: {
+    marginTop: 8,
+    gap: 6,
+  },
+  participantItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginLeft: 26,
+    flexWrap: 'wrap',
+  },
+  participantName: {
+    fontSize: 13,
+    color: '#1A4D3A',
+    fontWeight: '500',
+    flex: 1,
+  },
+  creatorBadge: {
+    backgroundColor: 'rgba(16, 185, 129, 0.15)',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: 'rgba(16, 185, 129, 0.3)',
+    marginLeft: 4,
+  },
+  creatorBadgeText: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: '#10B981',
+    textTransform: 'uppercase',
+    letterSpacing: 0.3,
+  },
+  noParticipantsText: {
+    fontSize: 12,
+    color: '#1A4D3A',
+    fontStyle: 'italic',
+    marginLeft: 26,
+    opacity: 0.7,
+  },
+  tableWrapper: {
+    marginTop: 8,
+    marginBottom: 16,
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+    borderRadius: 12,
+    padding: 16,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+    borderWidth: 1,
+    borderColor: 'rgba(26, 77, 58, 0.1)',
+  },
+  tableHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 16,
+    gap: 8,
+    paddingBottom: 12,
+    borderBottomWidth: 2,
+    borderBottomColor: 'rgba(26, 77, 58, 0.2)',
+  },
+  tableTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#1A4D3A',
+    flex: 1,
+    letterSpacing: 0.5,
+  },
+  editBetAmountButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    backgroundColor: 'rgba(16, 185, 129, 0.15)',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(16, 185, 129, 0.3)',
+  },
+  editBetAmountButtonText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#10B981',
+  },
+  emptyTableContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 32,
+    marginTop: 16,
+  },
+  emptyTableText: {
+    fontSize: 14,
+    color: '#1A4D3A',
+    textAlign: 'center',
+    marginTop: 12,
+    opacity: 0.7,
+  },
+  table: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 8,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(26, 77, 58, 0.1)',
+  },
+  tableRow: {
+    flexDirection: 'row',
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(26, 77, 58, 0.08)',
+    alignItems: 'center',
+    minHeight: 48,
+  },
+  tableRowEven: {
+    backgroundColor: 'rgba(232, 245, 233, 0.3)',
+  },
+  tableRowQualified: {
+    backgroundColor: 'rgba(16, 185, 129, 0.08)',
+    borderLeftWidth: 3,
+    borderLeftColor: '#10B981',
+  },
+  tableHeaderRow: {
+    backgroundColor: '#1A4D3A',
+    borderBottomWidth: 0,
+  },
+  tableCell: {
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+    fontSize: 13,
+    color: '#1A4D3A',
+    textAlign: 'center',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  tableCellPosition: {
+    width: 40,
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  tableCellTeam: {
+    flex: 2.5,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    textAlign: 'left',
+    paddingLeft: 12,
+  },
+  tableCellTeamText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#1A4D3A',
+    flex: 1,
+  },
+  tableCellTeamTextQualified: {
+    fontWeight: '700',
+    color: '#059669',
+  },
+  tableCellStat: {
+    flex: 1,
+    fontSize: 13,
+    fontWeight: '500',
+  },
+  tableCellWin: {
+    color: '#10B981',
+    fontWeight: '600',
+  },
+  tableCellLoss: {
+    color: '#EF4444',
+    fontWeight: '500',
+  },
+  tableCellPoints: {
+    flex: 1.2,
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#1A4D3A',
+  },
+  tableCellPointsQualified: {
+    color: '#059669',
+    fontSize: 15,
+  },
+  tableCellPositive: {
+    color: '#10B981',
+    fontWeight: '600',
+  },
+  tableCellNegative: {
+    color: '#EF4444',
+    fontWeight: '600',
+  },
+  tableHeaderText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  positionBadge: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: 'rgba(26, 77, 58, 0.1)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1.5,
+    borderColor: 'rgba(26, 77, 58, 0.2)',
+  },
+  positionBadgeGold: {
+    backgroundColor: 'rgba(251, 191, 36, 0.2)',
+    borderColor: '#FBBF24',
+  },
+  positionBadgeSilver: {
+    backgroundColor: 'rgba(156, 163, 175, 0.2)',
+    borderColor: '#9CA3AF',
+  },
+  positionBadgeBronze: {
+    backgroundColor: 'rgba(217, 119, 6, 0.2)',
+    borderColor: '#D97706',
+  },
+  positionText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#1A4D3A',
+  },
+  positionTextHighlight: {
+    fontSize: 13,
+  },
+  teamFlag: {
+    fontSize: 20,
+    marginRight: 4,
+  },
+  // Matches styles
+  matchesSection: {
+    marginTop: 20,
+  },
+  matchesTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#1A4D3A',
+    marginBottom: 12,
+  },
+  matchesLoadingContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 20,
+    gap: 8,
+  },
+  matchesLoadingText: {
+    fontSize: 14,
+    color: '#1A4D3A',
+  },
+  matchesList: {
+    gap: 12,
+  },
+  matchCard: {
+    backgroundColor: 'rgba(255, 255, 255, 0.35)',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
+  },
+  matchHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 12,
+  },
+  matchNumber: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#1A4D3A',
+  },
+  matchGroup: {
+    fontSize: 11,
+    color: '#1A4D3A',
+    opacity: 0.7,
+  },
+  matchDay: {
+    fontSize: 11,
+    color: '#1A4D3A',
+    opacity: 0.7,
+  },
+  matchTeams: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
+  matchTeam: {
+    flex: 1,
+    alignItems: 'center',
+    gap: 4,
+  },
+  matchTeamFlag: {
+    fontSize: 24,
+  },
+  matchTeamName: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#1A4D3A',
+    textAlign: 'center',
+  },
+  matchScore: {
+    alignItems: 'center',
+    minWidth: 80,
+    gap: 4,
+  },
+  matchScoreText: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#1A4D3A',
+  },
+  realScoreLabel: {
+    fontSize: 9,
+    color: '#1A4D3A',
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 2,
+  },
+  predictionBadge: {
+    fontSize: 10,
+    color: '#10B981',
+    fontWeight: '600',
+    backgroundColor: 'rgba(16, 185, 129, 0.1)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    marginTop: 4,
+  },
+  detailsButton: {
+    marginTop: 8,
+    borderRadius: 8,
+    overflow: 'hidden',
+  },
+  detailsButtonGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    gap: 8,
+  },
+  detailsButtonText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  emptyMatchesContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 32,
+  },
+  emptyMatchesText: {
+    fontSize: 14,
+    color: '#E8F5E9',
+    textAlign: 'center',
+    marginTop: 12,
+    opacity: 0.8,
+  },
+  groupMatchesSection: {
+    marginBottom: 24,
+    backgroundColor: 'rgba(232, 245, 233, 0.75)',
+    borderRadius: 12,
+    padding: 16,
+  },
+  groupMatchesHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+    marginBottom: 16,
+    paddingBottom: 12,
+    borderBottomWidth: 2,
+    borderBottomColor: 'rgba(26, 77, 58, 0.2)',
+  },
+  groupMatchesTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#1A4D3A',
+  },
+  // Modal styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+    zIndex: 1000,
+  },
+  modalContent: {
+    backgroundColor: '#E8F5E9',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    padding: 24,
+    maxHeight: '80%',
+    zIndex: 1001,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 24,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#1A4D3A',
+  },
+  modalCloseButton: {
+    width: 32,
+    height: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modalMatchInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-around',
+    marginBottom: 32,
+    paddingVertical: 16,
+    backgroundColor: 'rgba(26, 77, 58, 0.1)',
+    borderRadius: 12,
+  },
+  modalTeam: {
+    alignItems: 'center',
+    gap: 8,
+    flex: 1,
+  },
+  modalTeamFlag: {
+    fontSize: 32,
+  },
+  modalTeamName: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#1A4D3A',
+    textAlign: 'center',
+  },
+  modalVs: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1A4D3A',
+    marginHorizontal: 16,
+  },
+  modalInputsContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-around',
+    marginBottom: 32,
+  },
+  modalInputGroup: {
+    alignItems: 'center',
+    gap: 8,
+    flex: 1,
+  },
+  modalInputLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#1A4D3A',
+    textAlign: 'center',
+  },
+  modalInput: {
+    width: 80,
+    height: 60,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: '#1A4D3A',
+    fontSize: 24,
+    fontWeight: '700',
+    color: '#1A4D3A',
+    textAlign: 'center',
+  },
+  modalInputSeparator: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: '#1A4D3A',
+    marginHorizontal: 16,
+  },
+  modalSaveButton: {
+    borderRadius: 12,
+    overflow: 'hidden',
+  },
+  modalSaveButtonGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 14,
+    paddingHorizontal: 24,
+    gap: 8,
+  },
+  modalSaveButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  // Betting section styles
+  bettingSection: {
+    marginTop: 16,
+    marginBottom: 16,
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(16, 185, 129, 0.3)',
+  },
+  bettingHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
+  bettingHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  bettingTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#1A4D3A',
+  },
+  editBetButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    backgroundColor: 'rgba(16, 185, 129, 0.1)',
+    borderRadius: 8,
+  },
+  editBetButtonText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#10B981',
+  },
+  bettingEditContainer: {
+    gap: 12,
+  },
+  betAmountInputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F9FAFB',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    paddingHorizontal: 16,
+  },
+  currencySymbol: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#1A4D3A',
+    marginRight: 8,
+  },
+  betAmountInput: {
+    flex: 1,
+    paddingVertical: 14,
+    fontSize: 16,
+    color: '#1A4D3A',
+  },
+  betAmountActions: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  saveBetButton: {
+    flex: 1,
+    backgroundColor: '#10B981',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  saveBetButtonDisabled: {
+    opacity: 0.6,
+  },
+  saveBetButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+  cancelBetButton: {
+    flex: 1,
+    backgroundColor: '#E5E7EB',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cancelBetButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#1A4D3A',
+  },
+  bettingInfoRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  bettingLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#1A4D3A',
+    opacity: 0.8,
+  },
+  bettingValue: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#10B981',
+  },
+  bettingValueExpired: {
+    color: '#EF4444',
+  },
+  bettingWarning: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 8,
+    padding: 10,
+    backgroundColor: 'rgba(249, 115, 22, 0.1)',
+    borderRadius: 8,
+  },
+  bettingWarningText: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: '#F97316',
+    flex: 1,
+  },
+  // Invite section styles
+  inviteSection: {
+    marginTop: 16,
+    flexDirection: 'row',
+    gap: 8,
+    alignItems: 'center',
+  },
+  inviteEmailInput: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 14,
+    color: '#1A4D3A',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  inviteButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#10B981',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 8,
+    minWidth: 120,
+    justifyContent: 'center',
+  },
+  inviteButtonDisabled: {
+    opacity: 0.6,
+  },
+  inviteButtonText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+});
+

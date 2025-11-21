@@ -3,6 +3,7 @@ import { View, Text, TouchableOpacity, Image } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { CompetitionCardProps } from './competition-card.types';
 import { styles } from './competition-card.styles';
+import { useTranslation } from 'react-i18next';
 
 const CompetitionCard: React.FC<CompetitionCardProps> = ({
   id,
@@ -17,12 +18,25 @@ const CompetitionCard: React.FC<CompetitionCardProps> = ({
   poolaAvailableDay, // Backend typo support
   poolDisabledDate,
   poolDisbaledDate, // Backend typo support
+  hasGroup = false,
   onPress,
+  onPressViewGroups,
   style,
 }) => {
-  const handlePress = () => {
+  const { t, i18n } = useTranslation();
+  const handleCardPress = () => {
+    // Si tiene grupo, no hacer nada al presionar el card (el botón lo maneja)
+    if (hasGroup) {
+      return;
+    }
     if (onPress) {
       onPress(id);
+    }
+  };
+
+  const handleViewGroups = () => {
+    if (onPressViewGroups) {
+      onPressViewGroups(id, name);
     }
   };
 
@@ -49,19 +63,22 @@ const CompetitionCard: React.FC<CompetitionCardProps> = ({
     // 1. EN CURSO (Rojo tenue): Ya es día 0 o pasó (poolAvailableDay <= hoy)
     if (diffDays <= 0) {
       console.log(`[${shortName}] 🔴 EN CURSO - already started`);
-      return { type: 'ongoing', label: 'EN CURSO', dateLabel: '', daysRemaining: 0 };
+      return { type: 'ongoing', label: t('competitionCard.ongoing'), dateLabel: '', daysRemaining: 0 };
     }
     
     // 2. SE CERRARÁ EN X DÍAS (Naranja): 1-3 días antes de poolAvailableDay
     if (diffDays >= 1 && diffDays <= 3) {
       console.log(`[${shortName}] 🟠 CLOSING SOON - ${diffDays} days until start`);
-      return { type: 'closing', label: `SE CERRARÁ EN ${diffDays} DÍA${diffDays > 1 ? 'S' : ''}`, dateLabel: '', daysRemaining: diffDays };
+      const label = diffDays === 1 
+        ? t('competitionCard.closingInOneDay')
+        : t('competitionCard.closingInDays', { count: diffDays });
+      return { type: 'closing', label, dateLabel: '', daysRemaining: diffDays };
     }
     
     // 3. ABIERTO (Azul): 4-15 días antes de poolAvailableDay
     if (diffDays >= 4 && diffDays <= 15) {
       console.log(`[${shortName}] 🔵 ABIERTO - ${diffDays} days until start`);
-      return { type: 'open', label: 'ABIERTO', dateLabel: '', daysRemaining: diffDays };
+      return { type: 'open', label: t('competitionCard.open'), dateLabel: '', daysRemaining: diffDays };
     }
     
     // 4. PRÓXIMAMENTE (Verde con 2 labels): 16 días hasta 2 meses en el futuro
@@ -70,7 +87,8 @@ const CompetitionCard: React.FC<CompetitionCardProps> = ({
       const startYear = startDate.getFullYear();
       const includeYear = startYear !== currentYear;
       
-      const dateStr = startDate.toLocaleDateString('es-ES', { 
+      const locale = i18n.language === 'es' ? 'es-ES' : i18n.language === 'en' ? 'en-US' : i18n.language;
+      const dateStr = startDate.toLocaleDateString(locale, { 
         day: 'numeric', 
         month: 'short',
         ...(includeYear && { year: 'numeric' })
@@ -78,7 +96,7 @@ const CompetitionCard: React.FC<CompetitionCardProps> = ({
       console.log(`[${shortName}] 🟢 PRÓXIMAMENTE - ${diffDays} days, starts: ${dateStr}`);
       return { 
         type: 'soon', 
-        label: 'PRÓXIMAMENTE', 
+        label: t('competitionCard.comingSoon'), 
         dateLabel: dateStr.toUpperCase(),
         daysRemaining: diffDays 
       };
@@ -86,7 +104,8 @@ const CompetitionCard: React.FC<CompetitionCardProps> = ({
     
     // 5. Fecha en gris: Más de 2 meses en el futuro (siempre con año)
     if (diffDays > 60) {
-      const dateStr = startDate.toLocaleDateString('es-ES', { 
+      const locale = i18n.language === 'es' ? 'es-ES' : i18n.language === 'en' ? 'en-US' : i18n.language;
+      const dateStr = startDate.toLocaleDateString(locale, { 
         day: 'numeric', 
         month: 'short',
         year: 'numeric'
@@ -106,7 +125,7 @@ const CompetitionCard: React.FC<CompetitionCardProps> = ({
   return (
     <TouchableOpacity
       style={[styles.card, style]}
-      onPress={handlePress}
+      onPress={handleCardPress}
       activeOpacity={0.8}
     >
       {/* Imagen de fondo */}
@@ -129,41 +148,55 @@ const CompetitionCard: React.FC<CompetitionCardProps> = ({
       {/* Overlay con gradiente */}
       <View style={styles.overlay} />
       
-      {/* Labels dinámicos según el estado */}
-      {status.type === 'open' && (
-        <View style={styles.openLabel}>
-          <Text style={styles.openLabelText}>{status.label}</Text>
-        </View>
-      )}
-      
-      {status.type === 'closing' && (
-        <View style={styles.closingLabel}>
-          <Text style={styles.closingLabelText}>{status.label}</Text>
-        </View>
-      )}
-      
-      {status.type === 'ongoing' && (
-        <View style={styles.ongoingLabel}>
-          <Text style={styles.ongoingLabelText}>{status.label}</Text>
-        </View>
-      )}
-      
-      {/* PRÓXIMAMENTE: 2 labels (texto + fecha) */}
-      {status.type === 'soon' && (
+      {/* Si tiene grupo: Solo mostrar botón "Ver grupos", ocultar todos los labels */}
+      {hasGroup ? (
+        <TouchableOpacity
+          style={styles.viewGroupsButton}
+          onPress={handleViewGroups}
+          activeOpacity={0.8}
+        >
+          <Ionicons name="list" size={16} color="#FFFFFF" />
+          <Text style={styles.viewGroupsButtonText}>{t('groups.viewGroups')}</Text>
+        </TouchableOpacity>
+      ) : (
+        /* Labels dinámicos según el estado (solo si NO tiene grupo) */
         <>
-          <View style={styles.soonLabel}>
-            <Text style={styles.soonLabelText}>PRÓXIMAMENTE</Text>
-          </View>
-          <View style={styles.soonDateLabel}>
-            <Text style={styles.soonDateLabelText}>{status.dateLabel}</Text>
-          </View>
+          {status.type === 'open' && (
+            <View style={styles.openLabel}>
+              <Text style={styles.openLabelText}>{status.label}</Text>
+            </View>
+          )}
+          
+          {status.type === 'closing' && (
+            <View style={styles.closingLabel}>
+              <Text style={styles.closingLabelText}>{status.label}</Text>
+            </View>
+          )}
+          
+          {status.type === 'ongoing' && (
+            <View style={styles.ongoingLabel}>
+              <Text style={styles.ongoingLabelText}>{status.label}</Text>
+            </View>
+          )}
+          
+          {/* PRÓXIMAMENTE: 2 labels (texto + fecha) */}
+          {status.type === 'soon' && (
+            <>
+              <View style={styles.soonLabel}>
+                <Text style={styles.soonLabelText}>{t('competitionCard.comingSoon')}</Text>
+              </View>
+              <View style={styles.soonDateLabel}>
+                <Text style={styles.soonDateLabelText}>{status.dateLabel}</Text>
+              </View>
+            </>
+          )}
+          
+          {status.type === 'future' && (
+            <View style={styles.futureLabel}>
+              <Text style={styles.futureLabelText}>{status.label}</Text>
+            </View>
+          )}
         </>
-      )}
-      
-      {status.type === 'future' && (
-        <View style={styles.futureLabel}>
-          <Text style={styles.futureLabelText}>{status.label}</Text>
-        </View>
       )}
       
       {/* Contenido */}
