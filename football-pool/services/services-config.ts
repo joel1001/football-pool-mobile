@@ -159,12 +159,30 @@ axiosBase.interceptors.response.use(
         (error.response.data?.error?.includes('Error getting prediction') ||
          error.response.data?.error?.includes('prediction'));
       
-      if (!isPredictionNotFound) {
+      // No loguear como error crítico el error de conversión de tipos del backend en GET /groups
+      // Este es un error conocido del backend que está siendo reportado
+      const isBackendTypeConversionError = 
+        error.config?.url?.includes('/groups') && 
+        error.config?.method === 'get' &&
+        error.response.status === 500 &&
+        (error.response.data?.error?.includes('converting from type') ||
+         error.response.data?.error?.includes('converter') ||
+         error.response.data?.error?.includes('No converter found'));
+      
+      if (!isPredictionNotFound && !isBackendTypeConversionError) {
         console.error('❌ API ERROR:', {
           status: error.response.status,
           url: error.config?.url,
           data: error.response.data,
           headers: error.response.headers,
+        });
+      } else if (isBackendTypeConversionError) {
+        // Log como warning en lugar de error, ya que es un problema conocido del backend
+        console.warn('⚠️ Backend Type Conversion Error (known issue):', {
+          status: error.response.status,
+          url: error.config?.url,
+          error: error.response.data?.error,
+          message: 'This is a backend bug that needs to be fixed. See BACKEND_GROUPS_DATE_CONVERSION_ERROR.md',
         });
       }
     } else if (error.request) {

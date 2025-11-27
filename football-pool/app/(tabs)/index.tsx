@@ -26,6 +26,7 @@ export default function HomeScreen() {
 
   // Cargar grupos del usuario para detectar qué competencias tienen grupos
   const loadUserGroups = async () => {
+    debugger;
     try {
       const response = await getUserGroups();
       // Crear un Set con los competitionIds de los grupos del usuario
@@ -45,10 +46,48 @@ export default function HomeScreen() {
       setIsLoading(true);
       setError(null);
       const data = await getAllCompetitions();
-      setCompetitionsData(data);
+      
+      // Validar estructura de respuesta
+      if (!data || typeof data !== 'object') {
+        console.error('❌ Invalid response structure:', data);
+        setError(t('competitions.error') + ': Invalid response structure');
+        return;
+      }
+      
+      // Asegurar que las propiedades existan (pueden ser arrays vacíos)
+      const validatedData: CompetitionsResponse = {
+        fifaNationalTeamCups: Array.isArray(data.fifaNationalTeamCups) 
+          ? data.fifaNationalTeamCups 
+          : [],
+        fifaOfficialClubCups: Array.isArray(data.fifaOfficialClubCups) 
+          ? data.fifaOfficialClubCups 
+          : [],
+        nationalClubLeagues: Array.isArray(data.nationalClubLeagues) 
+          ? data.nationalClubLeagues 
+          : [],
+      };
+      
+      console.log('✅ Competitions loaded:', {
+        fifaNationalTeamCups: validatedData.fifaNationalTeamCups.length,
+        fifaOfficialClubCups: validatedData.fifaOfficialClubCups.length,
+        nationalClubLeagues: validatedData.nationalClubLeagues.length,
+      });
+      
+      setCompetitionsData(validatedData);
     } catch (err: any) {
-      console.error('Error loading competitions:', err);
-      setError(err.response?.data?.error || t('competitions.error'));
+      console.error('❌ Error loading competitions:', {
+        message: err.message,
+        response: err.response?.data,
+        status: err.response?.status,
+        url: err.config?.url,
+      });
+      
+      const errorMessage = err.response?.data?.error 
+        || err.response?.data?.message 
+        || err.message 
+        || t('competitions.error');
+      
+      setError(errorMessage);
     } finally {
       setIsLoading(false);
     }
@@ -94,13 +133,14 @@ export default function HomeScreen() {
     });
   };
 
-  const handleViewGroups = (competitionId: string, competitionName: string) => {
+  const handleViewGroups = (competitionId: string, competitionName: string, category: string) => {
     console.log('View groups for competition:', competitionId);
     router.push({
       pathname: '/competition-groups',
       params: { 
         competitionId,
         competitionName,
+        category,
       },
     });
   };
@@ -165,6 +205,7 @@ export default function HomeScreen() {
             onPressTitle={() => handleCategoryPress('fifaNationalTeamCups', t('home.fifaNationalTeamCups'))}
             onPressViewGroups={handleViewGroups}
             userGroups={userGroupsCompetitionIds}
+            category="fifaNationalTeamCups"
           />
         )}
 
@@ -176,6 +217,7 @@ export default function HomeScreen() {
             onPressTitle={() => handleCategoryPress('fifaOfficialClubCups', t('home.fifaOfficialClubCups'))}
             onPressViewGroups={handleViewGroups}
             userGroups={userGroupsCompetitionIds}
+            category="fifaOfficialClubCups"
           />
         )}
 
@@ -187,6 +229,7 @@ export default function HomeScreen() {
             onPressTitle={() => handleCategoryPress('nationalClubLeagues', t('home.nationalClubLeagues'))}
             onPressViewGroups={handleViewGroups}
             userGroups={userGroupsCompetitionIds}
+            category="nationalClubLeagues"
           />
         )}
       </ScrollView>

@@ -43,6 +43,15 @@
     "invitedEmails": "Email Invitati",
     "noParticipants": "Nessun partecipante",
     "team": "Squadra",
+    "teamShort": "S",
+    "playedShort": "G",
+    "wonShort": "V",
+    "drawnShort": "N",
+    "lostShort": "P",
+    "goalsForShort": "GF",
+    "goalsAgainstShort": "GS",
+    "goalDifferenceShort": "DR",
+    "pointsShort": "Pti",
     "tableWillAppear": "La classifica apparirà quando inizierà la competizione",
     "loading": "Caricamento gruppi...",
     "nameRequired": "Nome Richiesto",
@@ -88,7 +97,8 @@
     "group": "Gruppo",
     "eliminations": "Eliminatorie",
     "match": "Partita",
-    "realResult": "Risultato Reale"
+    "realResult": "Risultato Reale",
+    "dateNotAvailable": "Data non disponibile"
   },
   "predictions": {
     "title": "Inserisci Previsione",

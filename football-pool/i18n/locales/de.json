@@ -43,6 +43,15 @@
     "invitedEmails": "Eingeladene E-Mails",
     "noParticipants": "Keine Teilnehmer",
     "team": "Mannschaft",
+    "teamShort": "M",
+    "playedShort": "S",
+    "wonShort": "G",
+    "drawnShort": "U",
+    "lostShort": "V",
+    "goalsForShort": "T",
+    "goalsAgainstShort": "GT",
+    "goalDifferenceShort": "TD",
+    "pointsShort": "Pkt",
     "tableWillAppear": "Die Tabelle wird erscheinen, wenn der Wettbewerb beginnt",
     "loading": "Gruppen werden geladen...",
     "nameRequired": "Name Erforderlich",
@@ -88,7 +97,8 @@
     "group": "Gruppe",
     "eliminations": "K.o.-Runde",
     "match": "Spiel",
-    "realResult": "Echtes Ergebnis"
+    "realResult": "Echtes Ergebnis",
+    "dateNotAvailable": "Datum nicht verfügbar"
   },
   "predictions": {
     "title": "Vorhersage Eingeben",

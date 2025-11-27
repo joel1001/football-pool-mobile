@@ -6,8 +6,9 @@ export interface CompetitionCarouselProps {
   data: CompetitionCardProps[];
   onPressCard?: (id: string) => void;
   onPressTitle?: () => void;
-  onPressViewGroups?: (id: string, name: string) => void; // Navegar a ver grupos
+  onPressViewGroups?: (id: string, name: string, category: string) => void; // Navegar a ver grupos
   userGroups?: Set<string>; // Set de competitionIds donde el usuario tiene grupos
+  category?: string; // Categoría de las competencias en este carousel
   style?: StyleProp<ViewStyle>;
 }
 

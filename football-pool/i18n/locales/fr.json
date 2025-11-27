@@ -43,6 +43,15 @@
     "invitedEmails": "Emails Invités",
     "noParticipants": "Aucun participant",
     "team": "Équipe",
+    "teamShort": "É",
+    "playedShort": "J",
+    "wonShort": "G",
+    "drawnShort": "N",
+    "lostShort": "P",
+    "goalsForShort": "BP",
+    "goalsAgainstShort": "BC",
+    "goalDifferenceShort": "DB",
+    "pointsShort": "Pts",
     "tableWillAppear": "Le classement apparaîtra lorsque la compétition commencera",
     "loading": "Chargement des groupes...",
     "nameRequired": "Nom Requis",
@@ -88,7 +97,8 @@
     "group": "Groupe",
     "eliminations": "Éliminatoires",
     "match": "Match",
-    "realResult": "Résultat Réel"
+    "realResult": "Résultat Réel",
+    "dateNotAvailable": "Date non disponible"
   },
   "predictions": {
     "title": "Entrer une Prédiction",

@@ -2,20 +2,28 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useState, useEffect } from 'react';
-import { getUserGroups, getGroupMatches, savePrediction, getMatchPrediction, getGroupPredictions, patchGroup, inviteUser } from '@/services/groups';
-import { Group, Match, Prediction } from '@/services/groups/group-types';
+import { getUserGroups, getGroupMatches, patchGroup, inviteUser, deleteGroup } from '@/services/groups';
+import { Group, Match } from '@/services/groups/group-types';
+import { saveUserPrediction, getUserPredictions, getUserPrediction } from '@/services/auth/auth-service';
+import { UserPrediction } from '@/services/auth/auth-types';
 import { LinearGradient } from 'expo-linear-gradient';
 import { AnimatedBackgroundPenalty, ProfileBadge } from '@/atomic';
 import { useTranslation } from 'react-i18next';
 import { useAppContext } from '@/context/app-context';
 import { getUserIdFromToken } from '@/services/services-config';
+import { getCompetitionTeams } from '@/services/competitions';
+import { Team } from '@/services/competitions/competition-types';
+import { TeamImage } from '@/atomic/atoms/team-image';
 
 export default function CompetitionGroupsScreen() {
   const { t } = useTranslation();
   const { localData } = useAppContext();
   const params = useLocalSearchParams();
   const router = useRouter();
-  const { competitionId, competitionName } = params;
+  const { competitionId, competitionName, category: categoryParam } = params;
+  
+  // Determinar categoría: primero de params, si no está, intentar obtenerla del primer grupo
+  const category = (categoryParam as 'fifaNationalTeamCups' | 'fifaOfficialClubCups' | 'nationalClubLeagues') || undefined;
   
   // Obtener userId: primero de localData, si no está disponible, extraerlo del token
   const currentUserId = localData.userId || getUserIdFromToken(localData.token || null);
@@ -25,6 +33,7 @@ export default function CompetitionGroupsScreen() {
   const [error, setError] = useState<string | null>(null);
   const [expandedGroupId, setExpandedGroupId] = useState<string | null>(null);
   const [expandedMatchGroups, setExpandedMatchGroups] = useState<Set<string>>(new Set());
+  const [expandedTournamentGroups, setExpandedTournamentGroups] = useState<Set<string>>(new Set()); // Para grupos del torneo (A, B, C, etc.)
   const [allMatches, setAllMatches] = useState<Match[]>([]);
   const [loadingMatches, setLoadingMatches] = useState(false);
   const [selectedMatch, setSelectedMatch] = useState<{ groupId: string; match: Match } | null>(null);
@@ -32,7 +41,7 @@ export default function CompetitionGroupsScreen() {
   const [team1Score, setTeam1Score] = useState('');
   const [team2Score, setTeam2Score] = useState('');
   const [savingPrediction, setSavingPrediction] = useState(false);
-  const [userPredictions, setUserPredictions] = useState<Record<string, Prediction>>({});
+  const [userPredictions, setUserPredictions] = useState<Record<string, UserPrediction>>({});
   
   // Estados para edición de monto de apuesta
   const [editingBetAmount, setEditingBetAmount] = useState<Record<string, boolean>>({});
@@ -42,13 +51,29 @@ export default function CompetitionGroupsScreen() {
   // Estados para invitar usuarios
   const [inviteEmailInputs, setInviteEmailInputs] = useState<Record<string, string>>({});
   const [invitingUsers, setInvitingUsers] = useState<Record<string, boolean>>({});
+  
+  // Estado para cancelar grupo
+  const [deletingGroups, setDeletingGroups] = useState<Record<string, boolean>>({});
+  
+  // Estados para equipos e imágenes
+  const [teams, setTeams] = useState<Team[]>([]);
+  const [teamsMap, setTeamsMap] = useState<Map<string, Team>>(new Map());
+  const [loadingTeams, setLoadingTeams] = useState(false);
 
   useEffect(() => {
     loadGroups();
     // Asegurar que todos los grupos estén colapsados al cargar
     setExpandedGroupId(null);
     setExpandedMatchGroups(new Set());
+    setExpandedTournamentGroups(new Set());
   }, [competitionId]);
+
+  // Cargar equipos cuando tenemos category y competitionId
+  useEffect(() => {
+    if (category && competitionId) {
+      loadTeams();
+    }
+  }, [category, competitionId]);
 
   // Cargar matches una sola vez cuando se cargan los grupos
   useEffect(() => {
@@ -59,7 +84,40 @@ export default function CompetitionGroupsScreen() {
     // Asegurar que todos los grupos estén colapsados cuando se cargan
     setExpandedGroupId(null);
     setExpandedMatchGroups(new Set());
+    setExpandedTournamentGroups(new Set());
   }, [groups]);
+
+  const loadTeams = async () => {
+    if (!category || !competitionId) return;
+    
+    try {
+      setLoadingTeams(true);
+      const teamsData = await getCompetitionTeams(
+        category as 'fifaNationalTeamCups' | 'fifaOfficialClubCups' | 'nationalClubLeagues',
+        competitionId as string
+      );
+      
+      setTeams(teamsData);
+      
+      // Crear mapa de equipos (teamId -> Team) para búsqueda rápida
+      const map = new Map<string, Team>();
+      teamsData.forEach(team => {
+        map.set(team.id, team);
+      });
+      setTeamsMap(map);
+      
+      console.log('⚽ Teams Loaded:', {
+        competitionId,
+        category,
+        count: teamsData.length,
+      });
+    } catch (err: any) {
+      console.error('Error loading teams:', err);
+      // No mostrar error al usuario, solo log
+    } finally {
+      setLoadingTeams(false);
+    }
+  };
 
   const loadGroups = async () => {
     try {
@@ -99,8 +157,37 @@ export default function CompetitionGroupsScreen() {
       
       setGroups(filteredGroups);
     } catch (err: any) {
-      console.error('Error loading groups:', err);
-      setError(err.response?.data?.error || 'Error al cargar grupos');
+      console.error('❌ Error loading groups:', {
+        status: err.response?.status,
+        statusText: err.response?.statusText,
+        error: err.response?.data?.error,
+        message: err.response?.data?.message,
+        url: err.config?.url,
+        fullError: err,
+      });
+      
+      // Si es un error 500 del backend, mostrar mensaje específico
+      if (err.response?.status === 500) {
+        const backendError = err.response?.data?.error || '';
+        if (backendError.includes('converting from type') || backendError.includes('converter')) {
+          setError(
+            t('groups.backendError') + '\n\n' +
+            t('groups.backendTypeConversionError') + '\n\n' +
+            t('groups.backendErrorInstructions')
+          );
+        } else {
+          setError(err.response?.data?.error || t('groups.loadError'));
+        }
+      } else {
+        setError(err.response?.data?.error || t('groups.loadError'));
+      }
+      
+      // Mantener grupos vacíos en lugar de fallar completamente
+      // Esto permite que la app continúe funcionando aunque no se puedan cargar los grupos
+      setGroups([]);
+      
+      // Log adicional para debugging
+      console.warn('⚠️ Groups set to empty array due to error. App will continue to function.');
     } finally {
       setIsLoading(false);
     }
@@ -119,6 +206,17 @@ export default function CompetitionGroupsScreen() {
         groupId,
         count: response.count,
       });
+      
+      // Debug: Verificar si matchDay está llegando
+      if (response.matches && response.matches.length > 0) {
+        console.log('📅 Sample Match Data:', {
+          matchId: response.matches[0].matchId,
+          matchDay: response.matches[0].matchDay,
+          matchDate: response.matches[0].matchDate,
+          matchday: response.matches[0].matchday,
+          fullMatch: response.matches[0],
+        });
+      }
       
       setAllMatches(response.matches);
       
@@ -159,47 +257,152 @@ export default function CompetitionGroupsScreen() {
   };
 
   const loadUserPredictions = async (groupId: string, matches: Match[]) => {
+    if (!currentUserId) {
+      console.log('⚠️ No userId available, skipping predictions load');
+      return;
+    }
+
     try {
-      // Usar getGroupPredictions para obtener todas las predicciones de una vez
-      // en lugar de hacer una llamada por cada match
-      const predictionsResponse = await getGroupPredictions(groupId);
+      // Obtener todas las predicciones del usuario para este grupo desde auth_service
+      const response = await getUserPredictions(currentUserId, groupId);
       
-      const predictionsMap: Record<string, Prediction> = {};
+      // Crear un mapa de predicciones por matchId para acceso rápido
+      const predictionsMap: Record<string, UserPrediction> = {};
       
-      // Mapear las predicciones por matchId
-      if (predictionsResponse.predictions && predictionsResponse.predictions.length > 0) {
-        predictionsResponse.predictions.forEach((prediction) => {
+      if (response.predictions && response.predictions.length > 0) {
+        response.predictions.forEach((prediction) => {
+          // Usar matchId como clave para acceso rápido
           predictionsMap[prediction.matchId] = prediction;
         });
       }
       
       setUserPredictions(prev => ({ ...prev, ...predictionsMap }));
+      console.log('✅ User predictions loaded:', {
+        groupId,
+        count: response.count,
+        predictionsLoaded: Object.keys(predictionsMap).length,
+      });
     } catch (err: any) {
-      // Si falla, intentar cargar predicciones individuales solo para matches visibles
-      // pero silenciar errores 500 que indican "predicción no existe"
-      console.log('⚠️ Error loading all predictions, will load individually if needed:', err.response?.status);
-      
-      // No hacer nada más - las predicciones se cargarán bajo demanda cuando el usuario
-      // intente ver/editar una predicción específica
+      console.log('⚠️ Error loading user predictions:', {
+        status: err.response?.status,
+        error: err.response?.data?.error,
+        message: err.message,
+      });
+      // No mostrar error al usuario, simplemente no cargar predicciones
     }
   };
 
-  const handleOpenPredictionModal = (groupId: string, match: Match) => {
+  /**
+   * Función para verificar si la predicción está deshabilitada (1 día antes del matchDay)
+   * 
+   * Formato esperado de matchDay en la base de datos (MongoDB):
+   * - ISO 8601 con timezone: "2025-11-25T15:00:00.000+00:00"
+   * - ISO 8601 con UTC: "2025-11-20T15:00:00Z"
+   * - ISO 8601 solo fecha: "2025-11-20" (se interpreta como medianoche UTC)
+   * 
+   * La predicción se deshabilita si quedan 1 día o menos antes del matchDay
+   */
+  const isPredictionDisabled = (match: Match): boolean => {
+    // matchday puede ser number, date (string ISO), o objeto MongoDB Date {"$date": "..."}
+    // Intentar obtener la fecha del partido (prioridad: matchDay > matchDate > matchday si es fecha)
+    let matchDateValue: string | null = null;
+    
+    // Verificar si matchday es un objeto MongoDB Date
+    if (match.matchday && typeof match.matchday === 'object' && match.matchday !== null) {
+      const mongoDate = match.matchday as any;
+      if (mongoDate.$date) {
+        matchDateValue = mongoDate.$date;
+      }
+    }
+    // Verificar si matchday es una fecha (string ISO)
+    else if (match.matchday && typeof match.matchday === 'string') {
+      matchDateValue = match.matchday;
+    }
+    // Si matchday es un número, no es una fecha
+    else {
+      // Usar matchDay o matchDate como fallback
+      matchDateValue = match.matchDay || match.matchDate;
+    }
+    
+    if (!matchDateValue) {
+      return false; // Si no hay fecha, permitir predicción
+    }
+    
+    try {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0); // Resetear a medianoche para comparación precisa
+      
+      // Parsear la fecha (acepta ISO 8601: "2025-11-20T15:00:00.000+00:00" o "2025-11-20T15:00:00Z" o "2025-11-20")
+      const matchDate = new Date(matchDateValue);
+      
+      // Validar que la fecha sea válida
+      if (isNaN(matchDate.getTime())) {
+        console.warn('Invalid matchDay/matchDate/matchday format:', matchDateValue);
+        return false; // Si la fecha es inválida, permitir predicción
+      }
+      
+      matchDate.setHours(0, 0, 0, 0);
+      
+      // Calcular diferencia en días
+      const diffTime = matchDate.getTime() - today.getTime();
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      
+      // Deshabilitar si es 1 día antes o menos (diffDays <= 1)
+      return diffDays <= 1;
+    } catch (error) {
+      console.error('Error parsing matchDay/matchDate/matchday:', error);
+      return false; // Si hay error, permitir predicción
+    }
+  };
+
+  const handleOpenPredictionModal = async (groupId: string, match: Match) => {
     if (match.isPlayed) {
       Alert.alert(t('predictions.matchPlayed'), t('predictions.cannotPredict'));
       return;
     }
 
+    // Verificar si la predicción está deshabilitada por fecha
+    if (isPredictionDisabled(match)) {
+      Alert.alert(
+        t('predictions.predictionDisabled'),
+        t('predictions.predictionDisabledMessage')
+      );
+      return;
+    }
+
     setSelectedMatch({ groupId, match });
     
-    // Cargar predicción existente si hay
+    // Cargar predicción existente si hay (desde userPredictions)
     const existingPrediction = userPredictions[match.matchId];
     if (existingPrediction) {
       setTeam1Score(existingPrediction.team1Score.toString());
       setTeam2Score(existingPrediction.team2Score.toString());
     } else {
-      setTeam1Score('');
-      setTeam2Score('');
+      // Si no hay predicción guardada, intentar cargarla desde el backend
+      if (currentUserId) {
+        try {
+          const predictionResponse = await getUserPrediction(currentUserId, groupId, match.matchId);
+          if (predictionResponse.prediction) {
+            setTeam1Score(predictionResponse.prediction.team1Score.toString());
+            setTeam2Score(predictionResponse.prediction.team2Score.toString());
+            // Actualizar el estado local también
+            setUserPredictions(prev => ({
+              ...prev,
+              [match.matchId]: predictionResponse.prediction!,
+            }));
+          } else {
+            setTeam1Score('');
+            setTeam2Score('');
+          }
+        } catch (err) {
+          console.log('No existing prediction found, starting fresh');
+          setTeam1Score('');
+          setTeam2Score('');
+        }
+      } else {
+        setTeam1Score('');
+        setTeam2Score('');
+      }
     }
     
     setPredictionModalVisible(true);
@@ -221,7 +424,7 @@ export default function CompetitionGroupsScreen() {
   const matchesWithoutGroup = allMatches.filter(m => !m.groupLetter);
 
   const handleSavePrediction = async () => {
-    if (!selectedMatch) return;
+    if (!selectedMatch || !currentUserId) return;
 
     const score1 = parseInt(team1Score);
     const score2 = parseInt(team2Score);
@@ -231,15 +434,28 @@ export default function CompetitionGroupsScreen() {
       return;
     }
 
+    // Validar que el partido no haya sido jugado
+    if (selectedMatch.match.isPlayed) {
+      Alert.alert(
+        t('predictions.matchPlayed'),
+        t('predictions.cannotPredict')
+      );
+      return;
+    }
+
     try {
       setSavingPrediction(true);
-      await savePrediction(selectedMatch.groupId, selectedMatch.match.matchId, {
+      
+      // Guardar predicción en el documento del usuario usando auth_service
+      await saveUserPrediction(currentUserId, {
+        groupId: selectedMatch.groupId,
+        matchId: selectedMatch.match.matchId,
         team1Score: score1,
         team2Score: score2,
       });
 
       // Actualizar predicción local
-      const newPrediction: Prediction = {
+      const newPrediction: UserPrediction = {
         groupId: selectedMatch.groupId,
         matchId: selectedMatch.match.matchId,
         team1Score: score1,
@@ -343,9 +559,8 @@ export default function CompetitionGroupsScreen() {
             </View>
           ) : (
             <>
-              {/* SECCIÓN 1: TABLAS DE GRUPOS */}
+              {/* SECCIÓN 1: GRUPOS DE USUARIOS */}
               <View style={styles.sectionContainer}>
-                <Text style={styles.sectionTitle}>{t('groups.scoreboard')}</Text>
                 {groups.map((group) => {
                   const isExpanded = expandedGroupId === group.groupId;
                   return (
@@ -791,134 +1006,71 @@ export default function CompetitionGroupsScreen() {
                                 )}
                               </>
                             )}
+                            
+                            {/* Botón para cancelar grupo (solo creador) */}
+                            {group.creatorUserId === currentUserId && (
+                              <TouchableOpacity
+                                style={styles.cancelGroupButton}
+                                onPress={() => {
+                                  Alert.alert(
+                                    t('groups.cancelGroup'),
+                                    t('groups.cancelGroupConfirm'),
+                                    [
+                                      {
+                                        text: t('common.cancel'),
+                                        style: 'cancel',
+                                      },
+                                      {
+                                        text: t('groups.cancelGroupConfirmButton'),
+                                        style: 'destructive',
+                                        onPress: async () => {
+                                          try {
+                                            setDeletingGroups(prev => ({ ...prev, [group.groupId]: true }));
+                                            await deleteGroup(group.groupId);
+                                            Alert.alert(
+                                              t('groups.groupCancelled'),
+                                              t('groups.groupCancelledMessage')
+                                            );
+                                            // Recargar grupos para actualizar la lista
+                                            await loadGroups();
+                                          } catch (err: any) {
+                                            console.error('Error deleting group:', err);
+                                            Alert.alert(
+                                              t('common.error'),
+                                              err.response?.data?.error || t('groups.cancelGroupError')
+                                            );
+                                          } finally {
+                                            setDeletingGroups(prev => ({ ...prev, [group.groupId]: false }));
+                                          }
+                                        },
+                                      },
+                                    ]
+                                  );
+                                }}
+                                disabled={deletingGroups[group.groupId]}
+                                activeOpacity={0.8}
+                              >
+                                <LinearGradient
+                                  colors={['#EF4444', '#DC2626']}
+                                  start={{ x: 0, y: 0 }}
+                                  end={{ x: 1, y: 0 }}
+                                  style={[styles.cancelGroupGradient, deletingGroups[group.groupId] && styles.cancelGroupGradientDisabled]}
+                                >
+                                  {deletingGroups[group.groupId] ? (
+                                    <ActivityIndicator size="small" color="#FFFFFF" />
+                                  ) : (
+                                    <>
+                                      <Ionicons name="trash-outline" size={18} color="#FFFFFF" />
+                                      <Text style={styles.cancelGroupButtonText}>
+                                        {t('groups.cancelGroup')}
+                                      </Text>
+                                    </>
+                                  )}
+                                </LinearGradient>
+                              </TouchableOpacity>
+                            )}
                           </View>
 
-                          {/* Tabla de posiciones (solo si tiene datos) */}
-                          {group.scoreboard &&
-                            group.scoreboard.teams &&
-                            group.scoreboard.teams.length > 0 && (
-                              <View style={styles.tableWrapper}>
-                                <View style={styles.tableHeader}>
-                                  <Text style={styles.tableTitle}>{t('groups.scoreboard')}</Text>
-                                  {group.creatorUserId === currentUserId && (
-                                    <TouchableOpacity
-                                      onPress={() => {
-                                        setEditingBetAmount(prev => ({ ...prev, [group.groupId]: true }));
-                                        setBetAmountInputs(prev => ({
-                                          ...prev,
-                                          [group.groupId]: group.totalBetAmount?.toString() || '',
-                                        }));
-                                      }}
-                                      style={styles.editBetAmountButton}
-                                      disabled={editingBetAmount[group.groupId]}
-                                    >
-                                      <Ionicons name="cash-outline" size={18} color="#10B981" />
-                                      <Text style={styles.editBetAmountButtonText}>
-                                        {t('groups.editBetAmount')}
-                                      </Text>
-                                    </TouchableOpacity>
-                                  )}
-                                </View>
-                                <View style={styles.table}>
-                                  {/* Encabezados */}
-                                  <View style={[styles.tableRow, styles.tableHeaderRow]}>
-                                    <View style={[styles.tableCell, styles.tableCellPosition]}>
-                                      <Text style={styles.tableHeaderText}>#</Text>
-                                    </View>
-                                    <View style={[styles.tableCell, styles.tableCellTeam]}>
-                                      <Text style={styles.tableHeaderText}>{t('groups.team')}</Text>
-                                    </View>
-                                    <Text style={[styles.tableCell, styles.tableCellStat, styles.tableHeaderText]}>PJ</Text>
-                                    <Text style={[styles.tableCell, styles.tableCellStat, styles.tableHeaderText]}>G</Text>
-                                    <Text style={[styles.tableCell, styles.tableCellStat, styles.tableHeaderText]}>E</Text>
-                                    <Text style={[styles.tableCell, styles.tableCellStat, styles.tableHeaderText]}>P</Text>
-                                    <Text style={[styles.tableCell, styles.tableCellStat, styles.tableHeaderText]}>GF</Text>
-                                    <Text style={[styles.tableCell, styles.tableCellStat, styles.tableHeaderText]}>GC</Text>
-                                    <Text style={[styles.tableCell, styles.tableCellStat, styles.tableHeaderText]}>DG</Text>
-                                    <Text style={[styles.tableCell, styles.tableCellPoints, styles.tableHeaderText]}>Pts</Text>
-                                  </View>
-
-                                  {/* Filas de datos */}
-                                  {group.scoreboard.teams.map((team, index) => {
-                                    const isQualified = team.position <= 2;
-                                    const isEvenRow = index % 2 === 0;
-                                    return (
-                                      <View 
-                                        key={team.teamId} 
-                                        style={[
-                                          styles.tableRow,
-                                          isEvenRow && styles.tableRowEven,
-                                          isQualified && styles.tableRowQualified,
-                                        ]}
-                                      >
-                                        <View style={styles.tableCellPosition}>
-                                          <View style={[
-                                            styles.positionBadge,
-                                            team.position === 1 && styles.positionBadgeGold,
-                                            team.position === 2 && styles.positionBadgeSilver,
-                                            team.position === 3 && styles.positionBadgeBronze,
-                                          ]}>
-                                            <Text style={[
-                                              styles.positionText,
-                                              (team.position <= 3) && styles.positionTextHighlight
-                                            ]}>
-                                              {team.position}
-                                            </Text>
-                                          </View>
-                                        </View>
-                                        <View style={[styles.tableCell, styles.tableCellTeam]}>
-                                          {team.teamFlag && (
-                                            <Text style={styles.teamFlag}>{team.teamFlag}</Text>
-                                          )}
-                                          <Text
-                                            style={[
-                                              styles.tableCellTeamText,
-                                              isQualified && styles.tableCellTeamTextQualified,
-                                            ]}
-                                            numberOfLines={1}
-                                          >
-                                            {team.teamName}
-                                          </Text>
-                                        </View>
-                                        <Text style={[styles.tableCell, styles.tableCellStat]}>{team.played}</Text>
-                                        <Text style={[styles.tableCell, styles.tableCellStat, styles.tableCellWin]}>{team.won}</Text>
-                                        <Text style={[styles.tableCell, styles.tableCellStat]}>{team.drawn}</Text>
-                                        <Text style={[styles.tableCell, styles.tableCellStat, styles.tableCellLoss]}>{team.lost}</Text>
-                                        <Text style={[styles.tableCell, styles.tableCellStat]}>{team.goalsFor}</Text>
-                                        <Text style={[styles.tableCell, styles.tableCellStat]}>{team.goalsAgainst}</Text>
-                                        <Text style={[
-                                          styles.tableCell,
-                                          styles.tableCellStat,
-                                          team.goalDifference > 0 && styles.tableCellPositive,
-                                          team.goalDifference < 0 && styles.tableCellNegative,
-                                        ]}>
-                                          {team.goalDifference > 0 ? '+' : ''}{team.goalDifference}
-                                        </Text>
-                                        <Text style={[
-                                          styles.tableCell,
-                                          styles.tableCellPoints,
-                                          isQualified && styles.tableCellPointsQualified,
-                                        ]}>
-                                          {team.points}
-                                        </Text>
-                                      </View>
-                                    );
-                                  })}
-                                </View>
-                              </View>
-                            )}
-                          
-                          {/* Mensaje si no hay datos en la tabla */}
-                          {(!group.scoreboard ||
-                            !group.scoreboard.teams ||
-                            group.scoreboard.teams.length === 0) && (
-                            <View style={styles.emptyTableContainer}>
-                              <Ionicons name="stats-chart" size={32} color="#A7F3D0" />
-                              <Text style={styles.emptyTableText}>
-                                {t('groups.tableWillAppear')}
-                              </Text>
-                            </View>
-                          )}
                         </View>
                       )}
                     </View>
@@ -939,6 +1091,12 @@ export default function CompetitionGroupsScreen() {
                     {/* Partidos agrupados por grupo */}
                     {Object.entries(matchesByGroup).map(([groupLetter, matches]) => {
                       const isMatchGroupExpanded = expandedMatchGroups.has(groupLetter);
+                      
+                      // Obtener la tabla de posiciones para este grupo del torneo
+                      const firstGroup = groups[0];
+                      const groupStage = firstGroup?.tournamentStructure?.stages?.['group-stage'];
+                      const tournamentGroup = groupStage?.groups?.find(g => g.groupLetter === groupLetter);
+                      
                       return (
                         <View key={groupLetter} style={styles.groupMatchesSection}>
                           <TouchableOpacity
@@ -963,56 +1121,258 @@ export default function CompetitionGroupsScreen() {
                             />
                           </TouchableOpacity>
                           {isMatchGroupExpanded && (
-                            <View style={styles.matchesList}>
+                            <>
+                              {/* Tabla de posiciones del grupo */}
+                              {tournamentGroup?.teams && tournamentGroup.teams.length > 0 && (
+                                <View style={styles.tableWrapper}>
+                                  <View style={styles.table}>
+                                    {/* Encabezados */}
+                                    <View style={[styles.tableRow, styles.tableHeaderRow]}>
+                                      {/* Columna de posición (vacía en el header) */}
+                                      <View style={styles.tableCellPosition}>
+                                        <Text style={styles.tableHeaderText}></Text>
+                                      </View>
+                                      <View style={[styles.tableCell, styles.tableCellTeam]}>
+                                        <Text style={styles.tableHeaderText}>{t('groups.teamShort')}</Text>
+                                      </View>
+                                      <Text style={[styles.tableCell, styles.tableCellStat, styles.tableHeaderText]}>{t('groups.playedShort')}</Text>
+                                      <Text style={[styles.tableCell, styles.tableCellStat, styles.tableHeaderText]}>{t('groups.wonShort')}</Text>
+                                      <Text style={[styles.tableCell, styles.tableCellStat, styles.tableHeaderText]}>{t('groups.drawnShort')}</Text>
+                                      <Text style={[styles.tableCell, styles.tableCellStat, styles.tableHeaderText]}>{t('groups.lostShort')}</Text>
+                                      <Text style={[styles.tableCell, styles.tableCellStat, styles.tableHeaderText]}>{t('groups.goalsForShort')}</Text>
+                                      <Text style={[styles.tableCell, styles.tableCellStat, styles.tableHeaderText]}>{t('groups.goalsAgainstShort')}</Text>
+                                      <Text style={[styles.tableCell, styles.tableCellStat, styles.tableHeaderText]}>{t('groups.goalDifferenceShort')}</Text>
+                                      <Text style={[styles.tableCell, styles.tableCellPoints, styles.tableHeaderText]}>{t('groups.pointsShort')}</Text>
+                                    </View>
+
+                                    {/* Filas de datos - ordenadas por posición */}
+                                    {tournamentGroup.teams
+                                      .slice() // Crear copia para no mutar el array original
+                                      .sort((a, b) => {
+                                        // Ordenar primero por puntos (descendente)
+                                        if (b.points !== a.points) {
+                                          return b.points - a.points;
+                                        }
+                                        // Si hay empate en puntos, ordenar por diferencia de goles (descendente)
+                                        if (b.goalDifference !== a.goalDifference) {
+                                          return b.goalDifference - a.goalDifference;
+                                        }
+                                        // Si hay empate en diferencia, ordenar por goles a favor (descendente)
+                                        if (b.goalsFor !== a.goalsFor) {
+                                          return b.goalsFor - a.goalsFor;
+                                        }
+                                        // Si todo está empatado, usar la posición del backend como último criterio
+                                        return (a.position || 999) - (b.position || 999);
+                                      })
+                                      .map((team, index) => {
+                                        // Calcular la posición real basada en el ordenamiento
+                                        const actualPosition = index + 1;
+                                        const isQualified = actualPosition <= (tournamentGroup.teamsQualify || 2);
+                                        const isEvenRow = index % 2 === 0;
+                                        return (
+                                          <View 
+                                            key={team.teamId} 
+                                            style={[
+                                              styles.tableRow,
+                                              isEvenRow && styles.tableRowEven,
+                                              isQualified && styles.tableRowQualified,
+                                            ]}
+                                          >
+                                            <View style={styles.tableCellPosition}>
+                                              <View style={[
+                                                styles.positionBadge,
+                                                actualPosition === 1 && styles.positionBadgeGold,
+                                                actualPosition === 2 && styles.positionBadgeSilver,
+                                                actualPosition === 3 && styles.positionBadgeBronze,
+                                              ]}>
+                                                <Text style={[
+                                                  styles.positionText,
+                                                  (actualPosition <= 3) && styles.positionTextHighlight
+                                                ]}>
+                                                  {actualPosition}
+                                                </Text>
+                                              </View>
+                                            </View>
+                                            <View style={[styles.tableCell, styles.tableCellTeam]}>
+                                              <TeamImage
+                                                teamId={team.teamId}
+                                                teamsMap={teamsMap}
+                                                category={category as 'fifaNationalTeamCups' | 'fifaOfficialClubCups' | 'nationalClubLeagues' | undefined}
+                                                fallbackFlag={team.teamFlag}
+                                                style="table"
+                                              />
+                                              <Text
+                                                style={[
+                                                  styles.tableCellTeamText,
+                                                  isQualified && styles.tableCellTeamTextQualified,
+                                                ]}
+                                                numberOfLines={1}
+                                              >
+                                                {team.teamName}
+                                              </Text>
+                                            </View>
+                                            <Text style={[styles.tableCell, styles.tableCellStat]}>{team.played}</Text>
+                                            <Text style={[styles.tableCell, styles.tableCellStat, styles.tableCellWin]}>{team.won}</Text>
+                                            <Text style={[styles.tableCell, styles.tableCellStat]}>{team.drawn}</Text>
+                                            <Text style={[styles.tableCell, styles.tableCellStat, styles.tableCellLoss]}>{team.lost}</Text>
+                                            <Text style={[styles.tableCell, styles.tableCellStat]}>{team.goalsFor}</Text>
+                                            <Text style={[styles.tableCell, styles.tableCellStat]}>{team.goalsAgainst}</Text>
+                                            <Text style={[
+                                              styles.tableCell,
+                                              styles.tableCellStat,
+                                              team.goalDifference > 0 && styles.tableCellPositive,
+                                              team.goalDifference < 0 && styles.tableCellNegative,
+                                            ]}>
+                                              {team.goalDifference > 0 ? '+' : ''}{team.goalDifference}
+                                            </Text>
+                                            <Text style={[
+                                              styles.tableCell,
+                                              styles.tableCellPoints,
+                                              isQualified && styles.tableCellPointsQualified,
+                                            ]}>
+                                              {team.points}
+                                            </Text>
+                                          </View>
+                                        );
+                                      })}
+                                  </View>
+                                </View>
+                              )}
+                              
+                              {/* Lista de partidos */}
+                              <View style={styles.matchesList}>
                           {matches.map((match) => {
                             const userPrediction = userPredictions[match.matchId];
                             // Usar el primer grupo para las predicciones (son las mismas para todos)
                             const firstGroupId = groups[0]?.groupId || '';
+                            
+                            // Debug: Log para verificar si matchDay existe
+                            if (match.matchDay || match.matchDate) {
+                              console.log('📅 Match date found:', {
+                                matchId: match.matchId,
+                                matchDay: match.matchDay,
+                                matchDate: match.matchDate,
+                              });
+                            }
+                            
                             return (
                               <View key={match.matchId} style={styles.matchCard}>
                                 <View style={styles.matchHeader}>
                                   <Text style={styles.matchNumber}>{t('matches.match')} {match.matchNumber}</Text>
-                                  {match.matchday && (
+                                  <View style={styles.matchHeaderCenter}>
+                                    {(() => {
+                                      // matchday puede ser number, date (string ISO), o objeto MongoDB Date {"$date": "..."}
+                                      // Intentar obtener la fecha del partido (prioridad: matchDay > matchDate > matchday si es fecha)
+                                      let dateValue: string | null = null;
+                                      
+                                      // Verificar si matchday es un objeto MongoDB Date
+                                      if (match.matchday && typeof match.matchday === 'object' && match.matchday !== null) {
+                                        const mongoDate = match.matchday as any;
+                                        if (mongoDate.$date) {
+                                          dateValue = mongoDate.$date;
+                                        }
+                                      }
+                                      // Verificar si matchday es una fecha (string ISO)
+                                      else if (match.matchday && typeof match.matchday === 'string') {
+                                        dateValue = match.matchday;
+                                      }
+                                      // Si matchday es un número, no es una fecha
+                                      else {
+                                        // Usar matchDay o matchDate como fallback
+                                        dateValue = match.matchDay || match.matchDate;
+                                      }
+                                      
+                                      if (dateValue) {
+                                        try {
+                                          const matchDate = new Date(dateValue);
+                                          
+                                          // Validar que la fecha sea válida
+                                          if (!isNaN(matchDate.getTime())) {
+                                            const formattedDate = matchDate.toLocaleDateString('es-ES', {
+                                              day: 'numeric',
+                                              month: 'short',
+                                              hour: '2-digit',
+                                              minute: '2-digit',
+                                            });
+                                            
+                                            return (
+                                              <Text style={styles.matchDateText}>
+                                                {formattedDate}
+                                              </Text>
+                                            );
+                                          }
+                                        } catch (e) {
+                                          console.error('Error formatting match date:', e, dateValue);
+                                        }
+                                      }
+                                      
+                                      // Si no hay fecha disponible, mostrar placeholder
+                                      return (
+                                        <Text style={styles.matchDateTextPlaceholder}>
+                                          {t('matches.dateNotAvailable')}
+                                        </Text>
+                                      );
+                                    })()}
+                                  </View>
+                                  {/* Mostrar jornada solo si matchday es un número */}
+                                  {match.matchday && typeof match.matchday === 'number' && (
                                     <Text style={styles.matchDay}>{t('matches.matchday')} {match.matchday}</Text>
                                   )}
                                 </View>
                                 
                                 <View style={styles.matchTeams}>
                                   <View style={styles.matchTeam}>
-                                    <Text style={styles.matchTeamFlag}>{match.team1Flag}</Text>
+                                    <View style={styles.matchTeamContent}>
+                                      <TeamImage
+                                        teamId={match.team1Id}
+                                        teamsMap={teamsMap}
+                                        category={category as 'fifaNationalTeamCups' | 'fifaOfficialClubCups' | 'nationalClubLeagues' | undefined}
+                                        fallbackFlag={match.team1Flag}
+                                        style="match"
+                                      />
+                                      {/* Mostrar marcador real junto al logo del equipo 1 */}
+                                      {match.team1Score !== null && (
+                                        <Text style={styles.realScoreNextToLogo}>
+                                          {match.team1Score}
+                                        </Text>
+                                      )}
+                                    </View>
                                     <Text style={styles.matchTeamName} numberOfLines={1}>
                                       {match.team1Name}
                                     </Text>
                                   </View>
                                   
                                   <View style={styles.matchScore}>
-                                    {/* Mostrar marcador real si existe */}
-                                    {match.team1Score !== null && match.team2Score !== null ? (
-                                      <>
-                                        <Text style={styles.realScoreLabel}>{t('matches.realResult')}</Text>
-                                        <Text style={styles.matchScoreText}>
-                                          {match.team1Score} - {match.team2Score}
-                                        </Text>
-                                        {userPrediction && (
-                                          <Text style={styles.predictionBadge}>
-                                            {t('matches.yourPrediction')}: {userPrediction.team1Score} - {userPrediction.team2Score}
-                                          </Text>
-                                        )}
-                                      </>
+                                    {/* Mostrar "vs" o separador si no hay marcadores reales */}
+                                    {match.team1Score === null || match.team2Score === null ? (
+                                      <Text style={styles.matchScoreText}>{t('matches.vs')}</Text>
                                     ) : (
-                                      <>
-                                        <Text style={styles.matchScoreText}>{t('matches.vs')}</Text>
-                                        {userPrediction && (
-                                          <Text style={styles.predictionBadge}>
-                                            {t('matches.prediction')}: {userPrediction.team1Score} - {userPrediction.team2Score}
-                                          </Text>
-                                        )}
-                                      </>
+                                      <Text style={styles.matchScoreSeparator}>-</Text>
+                                    )}
+                                    {/* Mostrar predicción del usuario si existe */}
+                                    {userPrediction && (
+                                      <Text style={styles.predictionBadge}>
+                                        {t('matches.yourPrediction')}: {userPrediction.team1Score} - {userPrediction.team2Score}
+                                      </Text>
                                     )}
                                   </View>
                                   
                                   <View style={styles.matchTeam}>
-                                    <Text style={styles.matchTeamFlag}>{match.team2Flag}</Text>
+                                    <View style={styles.matchTeamContent}>
+                                      <TeamImage
+                                        teamId={match.team2Id}
+                                        teamsMap={teamsMap}
+                                        category={category as 'fifaNationalTeamCups' | 'fifaOfficialClubCups' | 'nationalClubLeagues' | undefined}
+                                        fallbackFlag={match.team2Flag}
+                                        style="match"
+                                      />
+                                      {/* Mostrar marcador real junto al logo del equipo 2 */}
+                                      {match.team2Score !== null && (
+                                        <Text style={styles.realScoreNextToLogo}>
+                                          {match.team2Score}
+                                        </Text>
+                                      )}
+                                    </View>
                                     <Text style={styles.matchTeamName} numberOfLines={1}>
                                       {match.team2Name}
                                     </Text>
@@ -1041,7 +1401,8 @@ export default function CompetitionGroupsScreen() {
                               </View>
                             );
                           })}
-                            </View>
+                              </View>
+                            </>
                           )}
                         </View>
                       );
@@ -1082,47 +1443,122 @@ export default function CompetitionGroupsScreen() {
                               <View key={match.matchId} style={styles.matchCard}>
                                 <View style={styles.matchHeader}>
                                   <Text style={styles.matchNumber}>Partido {match.matchNumber}</Text>
-                                  {match.stageId && (
+                                  <View style={styles.matchHeaderCenter}>
+                                    {(() => {
+                                      // matchday puede ser number, date (string ISO), o objeto MongoDB Date {"$date": "..."}
+                                      // Intentar obtener la fecha del partido (prioridad: matchDay > matchDate > matchday si es fecha)
+                                      let dateValue: string | null = null;
+                                      
+                                      // Verificar si matchday es un objeto MongoDB Date
+                                      if (match.matchday && typeof match.matchday === 'object' && match.matchday !== null) {
+                                        const mongoDate = match.matchday as any;
+                                        if (mongoDate.$date) {
+                                          dateValue = mongoDate.$date;
+                                        }
+                                      }
+                                      // Verificar si matchday es una fecha (string ISO)
+                                      else if (match.matchday && typeof match.matchday === 'string') {
+                                        dateValue = match.matchday;
+                                      }
+                                      // Si matchday es un número, no es una fecha
+                                      else {
+                                        // Usar matchDay o matchDate como fallback
+                                        dateValue = match.matchDay || match.matchDate;
+                                      }
+                                      
+                                      if (dateValue) {
+                                        try {
+                                          const matchDate = new Date(dateValue);
+                                          
+                                          // Validar que la fecha sea válida
+                                          if (!isNaN(matchDate.getTime())) {
+                                            const formattedDate = matchDate.toLocaleDateString('es-ES', {
+                                              day: 'numeric',
+                                              month: 'short',
+                                              hour: '2-digit',
+                                              minute: '2-digit',
+                                            });
+                                            
+                                            return (
+                                              <Text style={styles.matchDateText}>
+                                                {formattedDate}
+                                              </Text>
+                                            );
+                                          }
+                                        } catch (e) {
+                                          console.error('Error formatting match date:', e, dateValue);
+                                        }
+                                      }
+                                      
+                                      // Si no hay fecha disponible, mostrar placeholder
+                                      return (
+                                        <Text style={styles.matchDateTextPlaceholder}>
+                                          {t('matches.dateNotAvailable')}
+                                        </Text>
+                                      );
+                                    })()}
+                                  </View>
+                                  {/* Mostrar jornada solo si matchday es un número, o stageId si existe */}
+                                  {match.matchday && typeof match.matchday === 'number' ? (
+                                    <Text style={styles.matchDay}>{t('matches.matchday')} {match.matchday}</Text>
+                                  ) : match.stageId ? (
                                     <Text style={styles.matchDay}>{match.stageId}</Text>
-                                  )}
+                                  ) : null}
                                 </View>
                                 
                                 <View style={styles.matchTeams}>
                                   <View style={styles.matchTeam}>
-                                    <Text style={styles.matchTeamFlag}>{match.team1Flag}</Text>
+                                    <View style={styles.matchTeamContent}>
+                                      <TeamImage
+                                        teamId={match.team1Id}
+                                        teamsMap={teamsMap}
+                                        category={category as 'fifaNationalTeamCups' | 'fifaOfficialClubCups' | 'nationalClubLeagues' | undefined}
+                                        fallbackFlag={match.team1Flag}
+                                        style="match"
+                                      />
+                                      {/* Mostrar marcador real junto al logo del equipo 1 */}
+                                      {match.team1Score !== null && (
+                                        <Text style={styles.realScoreNextToLogo}>
+                                          {match.team1Score}
+                                        </Text>
+                                      )}
+                                    </View>
                                     <Text style={styles.matchTeamName} numberOfLines={1}>
                                       {match.team1Name}
                                     </Text>
                                   </View>
                                   
                                   <View style={styles.matchScore}>
-                                    {/* Mostrar marcador real si existe */}
-                                    {match.team1Score !== null && match.team2Score !== null ? (
-                                      <>
-                                        <Text style={styles.realScoreLabel}>{t('matches.realResult')}</Text>
-                                        <Text style={styles.matchScoreText}>
-                                          {match.team1Score} - {match.team2Score}
-                                        </Text>
-                                        {userPrediction && (
-                                          <Text style={styles.predictionBadge}>
-                                            {t('matches.yourPrediction')}: {userPrediction.team1Score} - {userPrediction.team2Score}
-                                          </Text>
-                                        )}
-                                      </>
+                                    {/* Mostrar "vs" o separador si no hay marcadores reales */}
+                                    {match.team1Score === null || match.team2Score === null ? (
+                                      <Text style={styles.matchScoreText}>{t('matches.vs')}</Text>
                                     ) : (
-                                      <>
-                                        <Text style={styles.matchScoreText}>{t('matches.vs')}</Text>
-                                        {userPrediction && (
-                                          <Text style={styles.predictionBadge}>
-                                            {t('matches.prediction')}: {userPrediction.team1Score} - {userPrediction.team2Score}
-                                          </Text>
-                                        )}
-                                      </>
+                                      <Text style={styles.matchScoreSeparator}>-</Text>
+                                    )}
+                                    {/* Mostrar predicción del usuario si existe */}
+                                    {userPrediction && (
+                                      <Text style={styles.predictionBadge}>
+                                        {t('matches.yourPrediction')}: {userPrediction.team1Score} - {userPrediction.team2Score}
+                                      </Text>
                                     )}
                                   </View>
                                   
                                   <View style={styles.matchTeam}>
-                                    <Text style={styles.matchTeamFlag}>{match.team2Flag}</Text>
+                                    <View style={styles.matchTeamContent}>
+                                      <TeamImage
+                                        teamId={match.team2Id}
+                                        teamsMap={teamsMap}
+                                        category={category as 'fifaNationalTeamCups' | 'fifaOfficialClubCups' | 'nationalClubLeagues' | undefined}
+                                        fallbackFlag={match.team2Flag}
+                                        style="match"
+                                      />
+                                      {/* Mostrar marcador real junto al logo del equipo 2 */}
+                                      {match.team2Score !== null && (
+                                        <Text style={styles.realScoreNextToLogo}>
+                                          {match.team2Score}
+                                        </Text>
+                                      )}
+                                    </View>
                                     <Text style={styles.matchTeamName} numberOfLines={1}>
                                       {match.team2Name}
                                     </Text>
@@ -1204,12 +1640,24 @@ export default function CompetitionGroupsScreen() {
               <>
                 <View style={styles.modalMatchInfo}>
                   <View style={styles.modalTeam}>
-                    <Text style={styles.modalTeamFlag}>{selectedMatch.match.team1Flag}</Text>
+                    <TeamImage
+                      teamId={selectedMatch.match.team1Id}
+                      teamsMap={teamsMap}
+                      category={category as 'fifaNationalTeamCups' | 'fifaOfficialClubCups' | 'nationalClubLeagues' | undefined}
+                      fallbackFlag={selectedMatch.match.team1Flag}
+                      style="modal"
+                    />
                     <Text style={styles.modalTeamName}>{selectedMatch.match.team1Name}</Text>
                   </View>
                   <Text style={styles.modalVs}>{t('matches.vs')}</Text>
                   <View style={styles.modalTeam}>
-                    <Text style={styles.modalTeamFlag}>{selectedMatch.match.team2Flag}</Text>
+                    <TeamImage
+                      teamId={selectedMatch.match.team2Id}
+                      teamsMap={teamsMap}
+                      category={category as 'fifaNationalTeamCups' | 'fifaOfficialClubCups' | 'nationalClubLeagues' | undefined}
+                      fallbackFlag={selectedMatch.match.team2Flag}
+                      style="modal"
+                    />
                     <Text style={styles.modalTeamName}>{selectedMatch.match.team2Name}</Text>
                   </View>
                 </View>
@@ -1475,6 +1923,44 @@ const styles = StyleSheet.create({
     marginLeft: 26,
     opacity: 0.7,
   },
+  tournamentGroupAccordion: {
+    marginBottom: 12,
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    borderRadius: 12,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  tournamentGroupHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 16,
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+  },
+  tournamentGroupHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    gap: 10,
+  },
+  tournamentGroupName: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#1A4D3A',
+    flex: 1,
+  },
+  tournamentGroupTableWrapper: {
+    padding: 16,
+    paddingTop: 0,
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+  },
   tableWrapper: {
     marginTop: 8,
     marginBottom: 16,
@@ -1671,6 +2157,21 @@ const styles = StyleSheet.create({
     fontSize: 20,
     marginRight: 4,
   },
+  teamImage: {
+    width: 32,
+    height: 32,
+    marginRight: 8,
+  },
+  matchTeamImage: {
+    width: 40,
+    height: 40,
+    marginBottom: 4,
+  },
+  modalTeamImage: {
+    width: 48,
+    height: 48,
+    marginBottom: 8,
+  },
   // Matches styles
   matchesSection: {
     marginTop: 20,
@@ -1705,9 +2206,14 @@ const styles = StyleSheet.create({
   },
   matchHeader: {
     flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    gap: 8,
     marginBottom: 12,
+    gap: 8,
+  },
+  matchHeaderCenter: {
+    flex: 1,
+    alignItems: 'center',
   },
   matchNumber: {
     fontSize: 12,
@@ -1724,6 +2230,19 @@ const styles = StyleSheet.create({
     color: '#1A4D3A',
     opacity: 0.7,
   },
+  matchDateText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#10B981',
+    textAlign: 'center',
+  },
+  matchDateTextPlaceholder: {
+    fontSize: 11,
+    fontWeight: '400',
+    color: '#9CA3AF',
+    fontStyle: 'italic',
+    textAlign: 'center',
+  },
   matchTeams: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1734,6 +2253,12 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     gap: 4,
+  },
+  matchTeamContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
   },
   matchTeamFlag: {
     fontSize: 24,
@@ -1753,6 +2278,22 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '700',
     color: '#1A4D3A',
+  },
+  matchScoreSeparator: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#1A4D3A',
+  },
+  realScoreNextToLogo: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#10B981',
+    backgroundColor: 'rgba(16, 185, 129, 0.1)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#10B981',
   },
   realScoreLabel: {
     fontSize: 9,
@@ -2034,6 +2575,35 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     color: '#1A4D3A',
+  },
+  cancelGroupButton: {
+    marginTop: 16,
+    borderRadius: 12,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  cancelGroupGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+    gap: 8,
+  },
+  cancelGroupGradientDisabled: {
+    opacity: 0.6,
+  },
+  cancelGroupButtonText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#FFFFFF',
   },
   bettingInfoRow: {
     flexDirection: 'row',

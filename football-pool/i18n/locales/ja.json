@@ -43,6 +43,15 @@
     "invitedEmails": "招待されたメール",
     "noParticipants": "参加者なし",
     "team": "チーム",
+    "teamShort": "チ",
+    "playedShort": "試",
+    "wonShort": "勝",
+    "drawnShort": "分",
+    "lostShort": "敗",
+    "goalsForShort": "得",
+    "goalsAgainstShort": "失",
+    "goalDifferenceShort": "差",
+    "pointsShort": "点",
     "tableWillAppear": "競技が始まると順位表が表示されます",
     "loading": "グループを読み込み中...",
     "nameRequired": "名前が必要",
@@ -88,7 +97,8 @@
     "group": "グループ",
     "eliminations": "決勝トーナメント",
     "match": "試合",
-    "realResult": "実際の結果"
+    "realResult": "実際の結果",
+    "dateNotAvailable": "日付が利用できません"
   },
   "predictions": {
     "title": "予測を入力",

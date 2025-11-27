@@ -2,7 +2,9 @@ import axiosBase from "../services-config";
 import { 
   CompetitionsResponse, 
   CompetitionDetailsResponse,
-  Competition
+  Competition,
+  GetTeamsResponse,
+  Team
 } from "./competition-types";
 
 /**
@@ -10,8 +12,32 @@ import {
  * Obtener todas las competiciones organizadas por categoría
  */
 export const getAllCompetitions = async (): Promise<CompetitionsResponse> => {
-  const response = await axiosBase.get<CompetitionsResponse>("competitions");
-  return response.data;
+  try {
+    const response = await axiosBase.get<CompetitionsResponse>("competitions");
+    
+    // Log para debugging
+    console.log('📡 getAllCompetitions response:', {
+      status: response.status,
+      hasData: !!response.data,
+      dataKeys: response.data ? Object.keys(response.data) : [],
+      dataType: typeof response.data,
+    });
+    
+    // Validar estructura básica
+    if (!response.data || typeof response.data !== 'object') {
+      throw new Error('Invalid response: data is not an object');
+    }
+    
+    return response.data;
+  } catch (error: any) {
+    console.error('❌ getAllCompetitions error:', {
+      message: error.message,
+      response: error.response?.data,
+      status: error.response?.status,
+      url: error.config?.url,
+    });
+    throw error;
+  }
 };
 
 /**
@@ -106,6 +132,20 @@ export const deleteCompetition = async (
   id: string
 ): Promise<void> => {
   await axiosBase.delete(`competitions/${category}/${id}`);
+};
+
+/**
+ * GET /competitions/:category/:competitionId/teams
+ * Obtener equipos de una competencia
+ */
+export const getCompetitionTeams = async (
+  category: 'fifaNationalTeamCups' | 'fifaOfficialClubCups' | 'nationalClubLeagues',
+  competitionId: string
+): Promise<GetTeamsResponse> => {
+  const response = await axiosBase.get<GetTeamsResponse>(
+    `competitions/${category}/${competitionId}/teams`
+  );
+  return response.data;
 };
 
 

@@ -68,17 +68,68 @@ export default function CompetitionDetailsScreen() {
       });
       setUserGroups(groupsForCompetition);
     } catch (err: any) {
-      console.error('Error loading user groups:', err);
+      console.error('❌ Error loading user groups:', {
+        status: err.response?.status,
+        statusText: err.response?.statusText,
+        error: err.response?.data?.error,
+        message: err.response?.data?.message,
+        url: err.config?.url,
+        fullError: err,
+      });
+      
+      // Si es un error 500 del backend, mostrar mensaje específico
+      if (err.response?.status === 500) {
+        const backendError = err.response?.data?.error || '';
+        console.warn('⚠️ Backend error 500:', {
+          error: backendError,
+          url: err.config?.url,
+        });
+        
+        if (backendError.includes('converting from type') || backendError.includes('converter')) {
+          console.warn('⚠️ Backend error: Type conversion issue. This is a backend bug that needs to be fixed.');
+          // No mostrar alert al usuario, solo mantener grupos vacíos
+          // El usuario puede seguir usando la app, solo no verá sus grupos hasta que el backend se corrija
+        }
+      } else {
+        // Para otros errores, también mantener grupos vacíos pero loguear
+        console.warn('⚠️ Error loading groups (non-500):', {
+          status: err.response?.status,
+          error: err.response?.data?.error,
+        });
+      }
+      
+      // Mantener grupos vacíos en lugar de fallar completamente
+      // Esto permite que la app continúe funcionando aunque no se puedan cargar los grupos
+      setUserGroups([]);
     } finally {
       setIsLoadingUserGroups(false);
     }
   };
 
   // Check if competition is OPEN (available for group creation)
+  // Lógica:
+  // - Cuando está EN CURSO: se puede crear y acceder a grupos
+  // - Cuando está CERRADA: NO se pueden crear más grupos, PERO se pueden ver los existentes
   const isCompetitionOpen = (comp: CompetitionDetailsResponse | null): boolean => {
     if (!comp) {
       console.log('🔍 isCompetitionOpen: Competition is null');
       return false;
+    }
+    
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    // Verificar si la competencia está cerrada (poolDisabledDate)
+    const disabledDate = comp.poolDisabledDate || comp.poolDisbaledDate;
+    if (disabledDate) {
+      const closedDate = new Date(disabledDate);
+      closedDate.setHours(0, 0, 0, 0);
+      
+      // Si hoy es después de la fecha de cierre, no se puede crear grupos
+      if (today > closedDate) {
+        console.log('🔍 isCompetitionOpen: Competition is CLOSED (disabled date passed)');
+        return false;
+      }
     }
     
     const availableDay = comp.poolAvailableDay || comp.poolaAvailableDay;
@@ -86,6 +137,8 @@ export default function CompetitionDetailsScreen() {
       competitionId: comp.id,
       poolAvailableDay: comp.poolAvailableDay,
       poolaAvailableDay: comp.poolaAvailableDay,
+      poolDisabledDate: comp.poolDisabledDate,
+      poolDisbaledDate: comp.poolDisbaledDate,
       availableDay,
       hasAvailableDay: !!availableDay,
     });
@@ -95,27 +148,24 @@ export default function CompetitionDetailsScreen() {
       return false;
     }
     
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
     const startDate = new Date(availableDay);
     startDate.setHours(0, 0, 0, 0);
     
-    const diffTime = startDate.getTime() - today.getTime();
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    // Se puede crear grupos desde el día de inicio (poolAvailableDay) en adelante
+    // Mientras la competencia esté en curso (no cerrada)
+    const isOpen = today >= startDate;
     
     console.log('🔍 isCompetitionOpen:', {
-      diffDays,
-      isInRange: diffDays >= 4 && diffDays <= 15,
-      buttonVisible: diffDays >= 4 && diffDays <= 15,
+      today: today.toISOString().split('T')[0],
+      startDate: startDate.toISOString().split('T')[0],
+      isOpen,
+      buttonVisible: isOpen,
     });
     
-    // Open if 4-15 days before start
-    const isOpen = diffDays >= 4 && diffDays <= 15;
-    
     if (isOpen) {
-      console.log('✅ BUTTON VISIBLE - Competition is OPEN!');
+      console.log('✅ BUTTON VISIBLE - Competition is OPEN (in progress)!');
     } else {
-      console.log('❌ BUTTON HIDDEN - Competition is not OPEN');
+      console.log('❌ BUTTON HIDDEN - Competition has not started yet');
     }
     
     return isOpen;
@@ -199,8 +249,11 @@ export default function CompetitionDetailsScreen() {
       // Close modal
       setShowCreateModal(false);
       
+      // Recargar lista de grupos para incluir el nuevo grupo
+      await loadUserGroups();
+      
       // Show success message
-      let message = t('groups.groupCreatedSuccess', { name: response.group.competitionName }) + '\n\n';
+      let message = t('groups.groupCreatedSuccess', { name: response.group.competitionName || groupName }) + '\n\n';
       
       if (response.addedUserIds && response.addedUserIds > 0) {
         message += t('groups.usersAdded', { count: response.addedUserIds }) + '\n';
@@ -216,11 +269,16 @@ export default function CompetitionDetailsScreen() {
         message,
         [
             {
-              text: t('groups.viewGroup'),
+              text: t('groups.viewGroups'),
               onPress: () => {
+                // Navegar a la vista de grupos de la competencia
                 router.push({
-                  pathname: '/group-details',
-                  params: { id: groupId },
+                  pathname: '/competition-groups',
+                  params: { 
+                    competitionId: id,
+                    competitionName: competition.name,
+                    category: category as string,
+                  },
                 });
               },
             },
@@ -474,6 +532,7 @@ export default function CompetitionDetailsScreen() {
         </View>
 
         {/* Botón para ver grupos existentes (vista dedicada) */}
+        {/* SIEMPRE visible si hay grupos, incluso cuando la competencia está cerrada */}
         <View style={styles.userGroupsSection}>
           <Text style={styles.sectionTitle}>{t('competitionDetails.existingGroups')}</Text>
           {isLoadingUserGroups ? (
@@ -495,6 +554,7 @@ export default function CompetitionDetailsScreen() {
                   params: { 
                     competitionId: id,
                     competitionName: competition.name,
+                    category: category as string,
                   },
                 })
               }
@@ -508,7 +568,8 @@ export default function CompetitionDetailsScreen() {
           )}
         </View>
 
-        {/* Botón Crear Grupo - Solo visible si la competencia está ABIERTA (reemplaza el card de Próximamente) */}
+        {/* Botón Crear Grupo - Solo visible si la competencia está EN CURSO (no cerrada) */}
+        {/* Cuando está cerrada, este botón NO se muestra, pero se pueden ver grupos existentes */}
         {showCreateButton ? (
           <TouchableOpacity 
             style={styles.createGroupButton}

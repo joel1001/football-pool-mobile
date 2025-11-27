@@ -32,6 +32,7 @@ export interface UserInfoProps {
     refreshToken: string;
     tokenType: string;
     expiresIn: string;
+    predictions?: UserPrediction[]; // Array de predicciones del usuario
 }
 
 export interface ForgotPasswordProps {
@@ -85,4 +86,37 @@ export interface UpdateUserProfileProps {
     city?: string;
     phone?: string;
     zipcode?: string;
+}
+
+// Prediction types
+export interface UserPrediction {
+    groupId: string;
+    matchId: string;
+    team1Score: number;
+    team2Score: number;
+    predictedDate?: string;
+    points?: number;
+}
+
+export interface SavePredictionRequest {
+    groupId: string;
+    matchId: string;
+    team1Score: number;
+    team2Score: number;
+}
+
+export interface SavePredictionResponse {
+    message: string;
+    userId: string;
+    groupId: string;
+    matchId: string;
+}
+
+export interface GetPredictionsResponse {
+    predictions: UserPrediction[];
+    count: number;
+}
+
+export interface GetPredictionResponse {
+    prediction: UserPrediction | null;
 }

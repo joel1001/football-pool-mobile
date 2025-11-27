@@ -43,6 +43,15 @@
     "invitedEmails": "Emails invitados",
     "noParticipants": "No hay participantes",
     "team": "Equipo",
+    "teamShort": "E",
+    "playedShort": "PJ",
+    "wonShort": "G",
+    "drawnShort": "E",
+    "lostShort": "P",
+    "goalsForShort": "GF",
+    "goalsAgainstShort": "GC",
+    "goalDifferenceShort": "DG",
+    "pointsShort": "Pts",
     "tableWillAppear": "La tabla de posiciones aparecerá cuando comience la competencia",
     "loading": "Cargando grupos...",
     "nameRequired": "Nombre Requerido",
@@ -84,7 +93,17 @@
     "creator": "Creador",
     "backendValidationError": "⚠️ Error de Validación del Backend",
     "backendValidationMessage": "El backend todavía está usando la lógica antigua de validación ($50 por usuario). El frontend está configurado correctamente con un mínimo total de $50.",
-    "correctMinimumInfo": "✓ El mínimo correcto es: $50 en total (se divide entre todos los participantes)\n\nPor favor, reporta este error al equipo de backend para que actualicen la validación."
+    "correctMinimumInfo": "✓ El mínimo correcto es: $50 en total (se divide entre todos los participantes)\n\nPor favor, reporta este error al equipo de backend para que actualicen la validación.",
+    "cancelGroup": "Cancelar Grupo",
+    "cancelGroupConfirm": "¿Estás seguro de que deseas cancelar este grupo?\n\n⚠️ Al cancelar el grupo:\n• No se realizará el cobro de la apuesta\n• Todos los participantes serán notificados\n• El grupo será eliminado permanentemente\n\nEsta acción no se puede deshacer.",
+    "cancelGroupConfirmButton": "Sí, Cancelar Grupo",
+    "groupCancelled": "✅ Grupo Cancelado",
+    "groupCancelledMessage": "El grupo ha sido cancelado exitosamente. No se realizará el cobro de la apuesta.",
+    "cancelGroupError": "Error al cancelar el grupo",
+    "loadError": "Error al cargar grupos",
+    "backendError": "⚠️ Error del Backend",
+    "backendTypeConversionError": "El backend está teniendo un problema de conversión de tipos al intentar retornar los grupos. Este es un error del backend que necesita ser corregido.",
+    "backendErrorInstructions": "Por favor, reporta este error al equipo de backend. Mientras tanto, puedes seguir usando la aplicación, pero no podrás ver tus grupos hasta que el problema se resuelva."
   },
   "matches": {
     "title": "Partidos",
@@ -98,7 +117,8 @@
     "matchday": "Jornada",
     "group": "Grupo",
     "eliminations": "Eliminatorias",
-    "match": "Partido"
+    "match": "Partido",
+    "dateNotAvailable": "Fecha no disponible"
   },
   "predictions": {
     "title": "Ingresar Predicción",

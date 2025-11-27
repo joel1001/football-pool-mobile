@@ -48,8 +48,24 @@ export const getGroupById = async (id: string): Promise<GetGroupResponse> => {
  * Get all groups where the user is creator or member
  */
 export const getUserGroups = async (): Promise<GetUserGroupsResponse> => {
-  const response = await axiosBase.get<GetUserGroupsResponse>("groups");
-  return response.data;
+  try {
+    console.log('📡 Calling getUserGroups API...');
+    const response = await axiosBase.get<GetUserGroupsResponse>("groups");
+    console.log('✅ getUserGroups API Success:', {
+      status: response.status,
+      groupsCount: response.data?.groups?.length || 0,
+      totalCount: response.data?.count || 0,
+    });
+    return response.data;
+  } catch (error: any) {
+    console.error('❌ getUserGroups API Error:', {
+      status: error.response?.status,
+      error: error.response?.data?.error,
+      message: error.message,
+    });
+    // Re-throw para que el componente pueda manejarlo
+    throw error;
+  }
 };
 
 /**
@@ -209,7 +225,7 @@ export const registerMatchResult = async (
 };
 
 /**
- * POST /groups/:id/matches/:matchId/predict
+ * PATCH /groups/:id/matches/:matchId
  * Save or update user prediction for a match
  */
 export const savePrediction = async (
@@ -217,8 +233,8 @@ export const savePrediction = async (
   matchId: string,
   data: SavePredictionRequest
 ): Promise<SavePredictionResponse> => {
-  const response = await axiosBase.post<SavePredictionResponse>(
-    `groups/${groupId}/matches/${matchId}/predict`,
+  const response = await axiosBase.patch<SavePredictionResponse>(
+    `groups/${groupId}/matches/${matchId}`,
     data
   );
   return response.data;

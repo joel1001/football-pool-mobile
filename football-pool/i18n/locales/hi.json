@@ -43,6 +43,15 @@
     "invitedEmails": "आमंत्रित ईमेल",
     "noParticipants": "कोई प्रतिभागी नहीं",
     "team": "टीम",
+    "teamShort": "टी",
+    "playedShort": "खे",
+    "wonShort": "जी",
+    "drawnShort": "ड्र",
+    "lostShort": "हा",
+    "goalsForShort": "गो",
+    "goalsAgainstShort": "गोख",
+    "goalDifferenceShort": "गोअ",
+    "pointsShort": "अं",
     "tableWillAppear": "स्कोरबोर्ड प्रतियोगिता शुरू होने पर दिखाई देगा",
     "loading": "समूह लोड हो रहे हैं...",
     "nameRequired": "नाम आवश्यक",
@@ -88,7 +97,8 @@
     "group": "समूह",
     "eliminations": "नॉकआउट",
     "match": "मैच",
-    "realResult": "वास्तविक परिणाम"
+    "realResult": "वास्तविक परिणाम",
+    "dateNotAvailable": "तारीख उपलब्ध नहीं"
   },
   "predictions": {
     "title": "भविष्यवाणी दर्ज करें",

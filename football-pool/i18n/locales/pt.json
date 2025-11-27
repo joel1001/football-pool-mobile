@@ -43,6 +43,15 @@
     "invitedEmails": "Emails Convidados",
     "noParticipants": "Sem participantes",
     "team": "Equipe",
+    "teamShort": "E",
+    "playedShort": "J",
+    "wonShort": "V",
+    "drawnShort": "E",
+    "lostShort": "D",
+    "goalsForShort": "GP",
+    "goalsAgainstShort": "GC",
+    "goalDifferenceShort": "SG",
+    "pointsShort": "Pts",
     "tableWillAppear": "A tabela de classificação aparecerá quando a competição começar",
     "loading": "Carregando grupos...",
     "nameRequired": "Nome Obrigatório",
@@ -74,7 +83,11 @@
     "betAmountUpdated": "Valor da aposta atualizado com sucesso",
     "betAmountUpdateError": "Erro ao atualizar o valor da aposta",
     "divisionByZeroError": "Erro do Backend: Divisão por Zero",
-    "divisionByZeroMessage": "O backend está tentando dividir por zero ao criar o grupo. Isso pode ser devido a:\n• A competição não tem data de início (poolaAvailableDay)\n• Um cálculo incorreto no backend\n\nPor favor, relate este erro à equipe de backend com as informações mostradas abaixo."
+    "divisionByZeroMessage": "O backend está tentando dividir por zero ao criar o grupo. Isso pode ser devido a:\n• A competição não tem data de início (poolaAvailableDay)\n• Um cálculo incorreto no backend\n\nPor favor, relate este erro à equipe de backend com as informações mostradas abaixo.",
+    "loadError": "Erro ao carregar grupos",
+    "backendError": "⚠️ Erro do Backend",
+    "backendTypeConversionError": "O backend está tendo um problema de conversão de tipos ao tentar retornar os grupos. Este é um erro do backend que precisa ser corrigido.",
+    "backendErrorInstructions": "Por favor, reporte este erro à equipe de backend. Enquanto isso, você pode continuar usando o aplicativo, mas não poderá ver seus grupos até que o problema seja resolvido."
   },
   "matches": {
     "title": "Partidas",
@@ -88,7 +101,8 @@
     "group": "Grupo",
     "eliminations": "Eliminatórias",
     "match": "Partida",
-    "realResult": "Resultado Real"
+    "realResult": "Resultado Real",
+    "dateNotAvailable": "Data não disponível"
   },
   "predictions": {
     "title": "Inserir Previsão",

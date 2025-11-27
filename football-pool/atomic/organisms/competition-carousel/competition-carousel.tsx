@@ -12,6 +12,7 @@ const CompetitionCarousel: React.FC<CompetitionCarouselProps> = ({
   onPressTitle,
   onPressViewGroups,
   userGroups = new Set(),
+  category,
   style,
 }) => {
   return (
@@ -50,6 +51,7 @@ const CompetitionCarousel: React.FC<CompetitionCarouselProps> = ({
               hasGroup={hasGroup}
               onPress={onPressCard}
               onPressViewGroups={onPressViewGroups}
+              category={category}
             />
           );
         })}

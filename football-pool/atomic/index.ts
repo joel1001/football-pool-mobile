@@ -20,4 +20,5 @@ export * from './molecules/profile-badge';
 export * from './atoms/animated-background';
 export * from './atoms/animated-background-corner';
 export * from './atoms/animated-background-penalty';
+export * from './atoms/team-image';
 

@@ -15,7 +15,8 @@ export interface CompetitionCardProps {
   poolDisbaledDate?: string; // Backend typo support
   hasGroup?: boolean; // Si el usuario ya tiene un grupo para esta competencia
   onPress?: (id: string) => void;
-  onPressViewGroups?: (id: string, name: string) => void; // Navegar a ver grupos
+  onPressViewGroups?: (id: string, name: string, category: string) => void; // Navegar a ver grupos
+  category?: string; // Categoría de la competencia
   style?: StyleProp<ViewStyle>;
 }
 

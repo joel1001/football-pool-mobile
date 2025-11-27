@@ -43,6 +43,15 @@
     "invitedEmails": "Приглашенные Email",
     "noParticipants": "Нет участников",
     "team": "Команда",
+    "teamShort": "К",
+    "playedShort": "И",
+    "wonShort": "В",
+    "drawnShort": "Н",
+    "lostShort": "П",
+    "goalsForShort": "ЗГ",
+    "goalsAgainstShort": "ПГ",
+    "goalDifferenceShort": "РГ",
+    "pointsShort": "О",
     "tableWillAppear": "Таблица появится, когда начнется соревнование",
     "loading": "Загрузка групп...",
     "nameRequired": "Требуется Имя",
@@ -88,7 +97,8 @@
     "group": "Группа",
     "eliminations": "Плей-офф",
     "match": "Матч",
-    "realResult": "Реальный Результат"
+    "realResult": "Реальный Результат",
+    "dateNotAvailable": "Дата недоступна"
   },
   "predictions": {
     "title": "Ввести Прогноз",

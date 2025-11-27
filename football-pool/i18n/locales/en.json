@@ -43,6 +43,15 @@
     "invitedEmails": "Invited Emails",
     "noParticipants": "No participants",
     "team": "Team",
+    "teamShort": "T",
+    "playedShort": "P",
+    "wonShort": "W",
+    "drawnShort": "D",
+    "lostShort": "L",
+    "goalsForShort": "GF",
+    "goalsAgainstShort": "GA",
+    "goalDifferenceShort": "GD",
+    "pointsShort": "Pts",
     "tableWillAppear": "The scoreboard will appear when the competition begins",
     "loading": "Loading groups...",
     "nameRequired": "Name Required",
@@ -84,7 +93,17 @@
     "emailRequired": "Please enter an email",
     "invalidEmailFormat": "Please enter a valid email",
     "invitationSent": "Invitation sent to {{email}}",
-    "invitationError": "Error sending invitation"
+    "invitationError": "Error sending invitation",
+    "cancelGroup": "Cancel Group",
+    "cancelGroupConfirm": "Are you sure you want to cancel this group?\n\n⚠️ When canceling the group:\n• The bet payment will NOT be charged\n• All participants will be notified\n• The group will be permanently deleted\n\nThis action cannot be undone.",
+    "cancelGroupConfirmButton": "Yes, Cancel Group",
+    "groupCancelled": "✅ Group Cancelled",
+    "groupCancelledMessage": "The group has been cancelled successfully. The bet payment will not be charged.",
+    "cancelGroupError": "Error cancelling group",
+    "loadError": "Error loading groups",
+    "backendError": "⚠️ Backend Error",
+    "backendTypeConversionError": "The backend is having a type conversion issue when trying to return groups. This is a backend error that needs to be fixed.",
+    "backendErrorInstructions": "Please report this error to the backend team. In the meantime, you can continue using the app, but you won't be able to see your groups until the issue is resolved."
   },
   "matches": {
     "title": "Matches",
@@ -98,7 +117,8 @@
     "group": "Group",
     "eliminations": "Eliminations",
     "match": "Match",
-    "realResult": "Real Result"
+    "realResult": "Real Result",
+    "dateNotAvailable": "Date not available"
   },
   "predictions": {
     "title": "Enter Prediction",

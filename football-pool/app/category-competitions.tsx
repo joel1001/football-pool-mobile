@@ -67,6 +67,7 @@ export default function CategoryCompetitionsScreen() {
       params: { 
         competitionId,
         competitionName,
+        category: category as string,
       },
     });
   };
@@ -149,6 +150,7 @@ export default function CategoryCompetitionsScreen() {
                 hasGroup={hasGroup}
                 onPress={handleCardPress}
                 onPressViewGroups={handleViewGroups}
+                category={category as string}
                 style={styles.card}
               />
             );

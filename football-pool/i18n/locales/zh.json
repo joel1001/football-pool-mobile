@@ -43,6 +43,15 @@
     "invitedEmails": "邀请的电子邮件",
     "noParticipants": "没有参与者",
     "team": "队伍",
+    "teamShort": "队",
+    "playedShort": "场",
+    "wonShort": "胜",
+    "drawnShort": "平",
+    "lostShort": "负",
+    "goalsForShort": "进",
+    "goalsAgainstShort": "失",
+    "goalDifferenceShort": "差",
+    "pointsShort": "分",
     "tableWillAppear": "积分榜将在比赛开始时显示",
     "loading": "加载小组中...",
     "nameRequired": "需要名称",
@@ -88,7 +97,8 @@
     "group": "小组",
     "eliminations": "淘汰赛",
     "match": "比赛",
-    "realResult": "真实结果"
+    "realResult": "真实结果",
+    "dateNotAvailable": "日期不可用"
   },
   "predictions": {
     "title": "输入预测",

@@ -10,6 +10,7 @@ export interface Team {
   goalsAgainst: number;
   goalDifference: number;
   points: number;
+  position?: number; // Posición en la tabla
 }
 
 export interface Scoreboard {
@@ -136,6 +137,7 @@ export interface UpdateGroupRequest {
   invitedEmails?: string[];
   enabledAt?: number;
   disabledAt?: number | null;
+  totalBetAmount?: number; // Monto total de apuesta
 }
 
 export interface UpdateGroupResponse {
@@ -193,17 +195,22 @@ export interface Match {
   team2Id: string;
   team2Name: string;
   team2Flag: string;
+  // Resultados reales (solo lectura para frontend)
   team1Score: number | null;
   team2Score: number | null;
+  // Predicciones del usuario (el frontend puede modificar)
+  userTeam1Score?: number | null;
+  userTeam2Score?: number | null;
   winnerTeamId: string | null;
   loserTeamId: string | null;
   isDraw: boolean | null;
   matchDate: string | null;
+  matchDay?: string | null; // Fecha del partido en formato ISO 8601
   playedDate: string | null;
   isPlayed: boolean;
   venue: string | null;
   status: 'scheduled' | 'in-progress' | 'finished' | 'postponed' | 'cancelled';
-  matchday?: number | null;
+  matchday?: number | string | { $date: string } | null; // Número de jornada (1, 2, 3, etc.), fecha en formato ISO 8601, o objeto MongoDB Date {"$date": "..."}
   nextMatchId?: string | null;
   nextStageId?: string | null;
 }
@@ -248,19 +255,13 @@ export interface Prediction {
 }
 
 export interface SavePredictionRequest {
-  team1Score: number;
-  team2Score: number;
+  userTeam1Score: number;
+  userTeam2Score: number;
 }
 
 export interface SavePredictionResponse {
   message: string;
-  prediction: {
-    userId: string;
-    groupId: string;
-    matchId: string;
-    team1Score: number;
-    team2Score: number;
-  };
+  match: Match;
 }
 
 export interface GetPredictionsResponse {

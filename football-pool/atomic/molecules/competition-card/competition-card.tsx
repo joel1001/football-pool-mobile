@@ -21,6 +21,7 @@ const CompetitionCard: React.FC<CompetitionCardProps> = ({
   hasGroup = false,
   onPress,
   onPressViewGroups,
+  category,
   style,
 }) => {
   const { t, i18n } = useTranslation();
@@ -35,8 +36,8 @@ const CompetitionCard: React.FC<CompetitionCardProps> = ({
   };
 
   const handleViewGroups = () => {
-    if (onPressViewGroups) {
-      onPressViewGroups(id, name);
+    if (onPressViewGroups && category) {
+      onPressViewGroups(id, name, category);
     }
   };
 
@@ -46,7 +47,6 @@ const CompetitionCard: React.FC<CompetitionCardProps> = ({
     const availableDay = poolAvailableDay || poolaAvailableDay;
     
     if (!availableDay) {
-      console.log(`[${shortName}] No poolAvailableDay found`);
       return { type: 'none', label: '', dateLabel: '', daysRemaining: 0 };
     }
     
@@ -58,17 +58,13 @@ const CompetitionCard: React.FC<CompetitionCardProps> = ({
     const diffTime = startDate.getTime() - today.getTime();
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
     
-    console.log(`[${shortName}] Days until start (poolAvailableDay - today): ${diffDays}`);
-    
     // 1. EN CURSO (Rojo tenue): Ya es día 0 o pasó (poolAvailableDay <= hoy)
     if (diffDays <= 0) {
-      console.log(`[${shortName}] 🔴 EN CURSO - already started`);
       return { type: 'ongoing', label: t('competitionCard.ongoing'), dateLabel: '', daysRemaining: 0 };
     }
     
     // 2. SE CERRARÁ EN X DÍAS (Naranja): 1-3 días antes de poolAvailableDay
     if (diffDays >= 1 && diffDays <= 3) {
-      console.log(`[${shortName}] 🟠 CLOSING SOON - ${diffDays} days until start`);
       const label = diffDays === 1 
         ? t('competitionCard.closingInOneDay')
         : t('competitionCard.closingInDays', { count: diffDays });
@@ -77,7 +73,6 @@ const CompetitionCard: React.FC<CompetitionCardProps> = ({
     
     // 3. ABIERTO (Azul): 4-15 días antes de poolAvailableDay
     if (diffDays >= 4 && diffDays <= 15) {
-      console.log(`[${shortName}] 🔵 ABIERTO - ${diffDays} days until start`);
       return { type: 'open', label: t('competitionCard.open'), dateLabel: '', daysRemaining: diffDays };
     }
     
@@ -93,7 +88,6 @@ const CompetitionCard: React.FC<CompetitionCardProps> = ({
         month: 'short',
         ...(includeYear && { year: 'numeric' })
       });
-      console.log(`[${shortName}] 🟢 PRÓXIMAMENTE - ${diffDays} days, starts: ${dateStr}`);
       return { 
         type: 'soon', 
         label: t('competitionCard.comingSoon'), 
@@ -110,7 +104,6 @@ const CompetitionCard: React.FC<CompetitionCardProps> = ({
         month: 'short',
         year: 'numeric'
       });
-      console.log(`[${shortName}] ⚪ FAR FUTURE - ${diffDays} days, date: ${dateStr}`);
       return { type: 'future', label: dateStr.toUpperCase(), dateLabel: '', daysRemaining: diffDays };
     }
     
@@ -119,8 +112,6 @@ const CompetitionCard: React.FC<CompetitionCardProps> = ({
 
   const displaySubtitle = region || country || '';
   const status = getCompetitionStatus();
-  
-  console.log(`[${shortName}] Status:`, status);
 
   return (
     <TouchableOpacity

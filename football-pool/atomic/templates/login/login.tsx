@@ -228,6 +228,8 @@ export const Login = () => {
             isAuthenticated: true, 
             username: userInfo.name, 
             email: userInfo.email,
+            userId: userInfo._id,
+            profileImage: userInfo.profileImage,
             token: userInfo.accessToken 
           });
         } else {
@@ -264,6 +266,8 @@ export const Login = () => {
             isAuthenticated: true, 
             username: userInfo.name, 
             email: userInfo.email,
+            userId: userInfo._id,
+            profileImage: userInfo.profileImage,
             token: userInfo.accessToken 
           });
         } else {
@@ -336,6 +340,8 @@ export const Login = () => {
                 isAuthenticated: true, 
                 username: userInfo.name, 
                 email: userInfo.email,
+                userId: userInfo._id,
+                profileImage: userInfo.profileImage,
                 token: userInfo.accessToken 
               });
               // Clear forgot password state

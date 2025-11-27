@@ -21,4 +21,16 @@ export interface CompetitionsResponse {
 
 export type CompetitionDetailsResponse = Competition;
 
+export interface Team {
+  id: string;
+  name: string;
+  country: string;
+  flag?: string;
+  image?: string;
+  group?: string | null;
+  seed?: number;
+}
+
+export type GetTeamsResponse = Team[];
+
 
