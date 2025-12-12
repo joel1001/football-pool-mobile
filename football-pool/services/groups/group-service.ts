@@ -21,6 +21,8 @@ import {
   GetPredictionsResponse,
   GetPredictionResponse,
   CalculateScoresResponse,
+  UpdateMatchesDetailMultipleRequest,
+  UpdateMatchesDetailMultipleResponse,
 } from "./group-types";
 
 /**
@@ -34,44 +36,27 @@ export const createGroup = async (
   return response.data;
 };
 
-/**
- * GET /groups/:id
- * Get group details by ID
- */
 export const getGroupById = async (id: string): Promise<GetGroupResponse> => {
   const response = await axiosBase.get<GetGroupResponse>(`groups/${id}`);
   return response.data;
 };
 
-/**
- * GET /groups
- * Get all groups where the user is creator or member
- */
 export const getUserGroups = async (): Promise<GetUserGroupsResponse> => {
   try {
-    console.log('📡 Calling getUserGroups API...');
     const response = await axiosBase.get<GetUserGroupsResponse>("groups");
-    console.log('✅ getUserGroups API Success:', {
-      status: response.status,
-      groupsCount: response.data?.groups?.length || 0,
-      totalCount: response.data?.count || 0,
-    });
+
     return response.data;
   } catch (error: any) {
-    console.error('❌ getUserGroups API Error:', {
+    console.warn('❌ getUserGroups API Error:', {
       status: error.response?.status,
       error: error.response?.data?.error,
       message: error.message,
     });
-    // Re-throw para que el componente pueda manejarlo
     throw error;
   }
 };
 
-/**
- * PUT /groups/:id
- * Update group completely (only creator)
- */
+
 export const updateGroup = async (
   id: string,
   data: UpdateGroupRequest
@@ -83,10 +68,7 @@ export const updateGroup = async (
   return response.data;
 };
 
-/**
- * PATCH /groups/:id
- * Update group partially (only creator)
- */
+
 export const patchGroup = async (
   id: string,
   data: Partial<UpdateGroupRequest>
@@ -98,19 +80,11 @@ export const patchGroup = async (
   return response.data;
 };
 
-/**
- * DELETE /groups/:id
- * Delete group permanently (only creator)
- */
 export const deleteGroup = async (id: string): Promise<DeleteGroupResponse> => {
   const response = await axiosBase.delete<DeleteGroupResponse>(`groups/${id}`);
   return response.data;
 };
 
-/**
- * POST /groups/:id/invite
- * Send invitation email to join the group
- */
 export const inviteUser = async (
   id: string,
   data: InviteUserRequest
@@ -122,10 +96,6 @@ export const inviteUser = async (
   return response.data;
 };
 
-/**
- * POST /groups/:id/join
- * Join a group (if invited)
- */
 export const joinGroup = async (id: string): Promise<JoinGroupResponse> => {
   const response = await axiosBase.post<JoinGroupResponse>(
     `groups/${id}/join`,
@@ -134,10 +104,6 @@ export const joinGroup = async (id: string): Promise<JoinGroupResponse> => {
   return response.data;
 };
 
-/**
- * POST /groups/validate-emails
- * Validate if emails exist in the system (for modal)
- */
 export const validateEmails = async (
   emails: string[]
 ): Promise<ValidateEmailsResponse> => {
@@ -148,10 +114,6 @@ export const validateEmails = async (
   return response.data;
 };
 
-/**
- * GET /groups/:id/matches
- * Get all matches for a group (with optional filters)
- */
 export const getGroupMatches = async (
   groupId: string,
   filters?: {
@@ -160,10 +122,6 @@ export const getGroupMatches = async (
     status?: string;
   }
 ): Promise<GetMatchesResponse> => {
-  // Debug logging
-  console.log('🔍 DEBUG - getGroupMatches');
-  console.log('Group ID:', groupId);
-  console.log('Filters:', filters);
   
   const params = new URLSearchParams();
   if (filters?.stageId) params.append('stageId', filters.stageId);
@@ -173,18 +131,12 @@ export const getGroupMatches = async (
   const queryString = params.toString();
   const url = `groups/${groupId}/matches${queryString ? `?${queryString}` : ''}`;
   
-  console.log('Full URL:', url);
-  console.log('Request will be made to:', `${axiosBase.defaults.baseURL}${url}`);
-  
   try {
     const response = await axiosBase.get<GetMatchesResponse>(url);
-    console.log('✅ getGroupMatches SUCCESS:', {
-      count: response.data.count,
-      matchesReceived: response.data.matches?.length || 0,
-    });
+    console.log('response', response.data);
     return response.data;
   } catch (error: any) {
-    console.error('❌ Error in getGroupMatches:', {
+    console.warn('❌ Error in getGroupMatches:', {
       status: error.response?.status,
       url: error.config?.url,
       data: error.response?.data,
@@ -194,10 +146,6 @@ export const getGroupMatches = async (
   }
 };
 
-/**
- * GET /groups/:id/matches/:matchId
- * Get a specific match details
- */
 export const getGroupMatch = async (
   groupId: string,
   matchId: string
@@ -208,10 +156,6 @@ export const getGroupMatch = async (
   return response.data;
 };
 
-/**
- * POST /groups/:id/matches/:matchId/result
- * Register match result (only creator)
- */
 export const registerMatchResult = async (
   groupId: string,
   matchId: string,
@@ -224,10 +168,6 @@ export const registerMatchResult = async (
   return response.data;
 };
 
-/**
- * PATCH /groups/:id/matches/:matchId
- * Save or update user prediction for a match
- */
 export const savePrediction = async (
   groupId: string,
   matchId: string,
@@ -240,10 +180,6 @@ export const savePrediction = async (
   return response.data;
 };
 
-/**
- * GET /groups/:id/predictions
- * Get all user predictions for a group
- */
 export const getGroupPredictions = async (
   groupId: string
 ): Promise<GetPredictionsResponse> => {
@@ -253,10 +189,6 @@ export const getGroupPredictions = async (
   return response.data;
 };
 
-/**
- * GET /groups/:id/matches/:matchId/predict
- * Get user prediction for a specific match
- */
 export const getMatchPrediction = async (
   groupId: string,
   matchId: string
@@ -267,10 +199,6 @@ export const getMatchPrediction = async (
   return response.data;
 };
 
-/**
- * POST /groups/:id/calculate-scores
- * Calculate scores for all predictions (only creator)
- */
 export const calculateScores = async (
   groupId: string
 ): Promise<CalculateScoresResponse> => {
@@ -278,5 +206,156 @@ export const calculateScores = async (
     `groups/${groupId}/calculate-scores`
   );
   return response.data;
+};
+
+/**
+ * Obtiene los IDs de los grupos del usuario para una competencia específica
+ * 
+ * Esta función es útil para obtener los `groupIds` que se deben enviar cuando se guarda una predicción.
+ * Los `groupIds` son los IDs de los grupos donde el usuario fue agregado en la misma competencia.
+ * 
+ * @param competitionId - ID de la competencia para filtrar grupos
+ * @returns Array de IDs de grupos (groupIds) donde el usuario participa en esa competencia
+ * 
+ * @example
+ * // Obtener groupIds para enviar al guardar una predicción
+ * const groupIds = await getGroupIdsForCompetition('club-world-cup');
+ * await savePrediction(userId, {
+ *   matchId: 'match-1',
+ *   competitionId: 'club-world-cup',
+ *   groupIds: groupIds, // Usar los IDs obtenidos
+ *   ...
+ * });
+ */
+export const getGroupIdsForCompetition = async (
+  competitionId: string
+): Promise<string[]> => {
+  try {
+    if (!competitionId || competitionId.trim() === '') {
+      throw new Error('competitionId is required');
+    }
+
+    console.log('📤 [GROUPS] Getting group IDs for competition:', {
+      competitionId,
+    });
+
+    // Obtener todos los grupos del usuario
+    const response = await getUserGroups();
+
+    // Filtrar grupos por competitionId y extraer los IDs
+    // IMPORTANTE: Según documentación, usar _id PRIMERO (son los IDs de MongoDB)
+    // Si no existe _id, usar groupId como fallback
+    const groupIds = response.groups
+      .filter((group) => group.competitionId === competitionId)
+      .map((group) => (group as any)._id || group.groupId)
+      .filter((id): id is string => !!id); // Filtrar valores null/undefined
+
+    console.log('✅ [GROUPS] Group IDs retrieved:', {
+      competitionId,
+      groupIdsCount: groupIds.length,
+      groupIds,
+    });
+
+    if (groupIds.length === 0) {
+      console.warn('⚠️ [GROUPS] No groups found for competition:', {
+        competitionId,
+        message: 'User is not in any groups for this competition',
+      });
+    }
+
+    return groupIds;
+  } catch (error: any) {
+    console.error('❌ [GROUPS] Error getting group IDs for competition:', {
+      competitionId,
+      error: error.response?.data || error.message,
+      status: error.response?.status,
+    });
+
+    throw new Error(
+      error.response?.data?.error ||
+        error.message ||
+        'Failed to get group IDs for competition'
+    );
+  }
+};
+
+/**
+ * Actualiza el campo users (score y matchesInfo) en múltiples grupos
+ * 
+ * IMPORTANTE:
+ * - Este es un endpoint INTERNO que debe ser llamado desde auth_service después de guardar una predicción
+ * - El Frontend NO debería llamar este endpoint directamente en producción
+ * - Este endpoint requiere autenticación especial (X-Service-Token) para service-to-service calls
+ * - Si se llama desde el frontend, el token de usuario debe estar presente y el backend debe permitirlo
+ * 
+ * Este endpoint actualiza:
+ * - users[].score: Score acumulado del usuario en cada grupo
+ * - users[].matchesInfo: Array completo de predicciones del usuario para la competencia
+ * 
+ * @param request - Datos de la actualización
+ * @returns Response con información de los grupos actualizados
+ * 
+ * @example
+ * const result = await updateMatchesDetailMultiple({
+ *   groupIds: ['groupId1', 'groupId2'],
+ *   userId: 'userId123',
+ *   competitionId: 'club-world-cup',
+ *   matchesDetail: [...],
+ *   userScore: 150
+ * });
+ */
+export const updateMatchesDetailMultiple = async (
+  request: UpdateMatchesDetailMultipleRequest
+): Promise<UpdateMatchesDetailMultipleResponse> => {
+  try {
+    console.log('📤 [GROUPS] Updating matches detail in multiple groups:', {
+      userId: request.userId,
+      competitionId: request.competitionId,
+      groupIdsCount: request.groupIds.length,
+      matchesDetailCount: request.matchesDetail.length,
+      userScore: request.userScore,
+    });
+
+    // Llamar al endpoint interno
+    // NOTA: Este endpoint puede requerir X-Service-Token para autenticación service-to-service
+    // El backend debería validar si el request viene del frontend autorizado o de otro servicio
+    const response = await axiosBase.post<UpdateMatchesDetailMultipleResponse>(
+      'groups/internal/update-matches-detail-multiple',
+      request
+    );
+
+    console.log('✅ [GROUPS] Groups updated successfully:', {
+      userId: response.data.userId,
+      competitionId: response.data.competitionId,
+      successCount: response.data.successCount,
+      errorCount: response.data.errorCount,
+      matchesDetailCount: response.data.matchesDetailCount,
+      userScore: response.data.userScore,
+    });
+
+    if (response.data.errorCount > 0) {
+      console.warn('⚠️ [GROUPS] Some groups failed to update:', {
+        errorCount: response.data.errorCount,
+        results: response.data.results.filter((r) => r.status === 'error'),
+      });
+    }
+
+    return response.data;
+  } catch (error: any) {
+    console.error('❌ [GROUPS] Error updating matches detail in multiple groups:', {
+      userId: request.userId,
+      competitionId: request.competitionId,
+      groupIdsCount: request.groupIds.length,
+      error: error.response?.data || error.message,
+      status: error.response?.status,
+    });
+
+    throw new Error(
+      error.response?.data?.error ||
+        error.response?.data?.message ||
+        error.message ||
+        'Failed to update matches detail in multiple groups'
+    );
+  }
 };
 

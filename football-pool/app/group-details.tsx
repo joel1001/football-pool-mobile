@@ -29,10 +29,6 @@ export default function GroupDetailsScreen() {
       setIsLoading(true);
       setError(null);
       const response = await getGroupById(id);
-      console.log('📊 Group Details Loaded:', {
-        groupId: response.group.groupId,
-        name: response.group.competitionName,
-      });
       setGroup(response.group);
     } catch (err: any) {
       console.error('Error loading group details:', err);

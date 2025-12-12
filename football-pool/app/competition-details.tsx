@@ -37,13 +37,6 @@ export default function CompetitionDetailsScreen() {
       setIsLoading(true);
       setError(null);
       const data = await getCompetitionDetails(category as string, id as string);
-      console.log('📊 Competition Details Loaded:', {
-        id: data.id,
-        shortName: data.shortName,
-        poolAvailableDay: data.poolAvailableDay,
-        poolaAvailableDay: data.poolaAvailableDay,
-        hasAvailableDay: !!(data.poolAvailableDay || data.poolaAvailableDay),
-      });
       setCompetition(data);
     } catch (err: any) {
       console.error('Error loading competition details:', err);
@@ -61,11 +54,6 @@ export default function CompetitionDetailsScreen() {
       const groupsForCompetition = response.groups.filter(
         (group) => group.competitionId === competitionId
       );
-      console.log('📚 User groups for competition:', {
-        competitionId,
-        total: response.count,
-        filtered: groupsForCompetition.length,
-      });
       setUserGroups(groupsForCompetition);
     } catch (err: any) {
       console.error('❌ Error loading user groups:', {
@@ -106,68 +94,35 @@ export default function CompetitionDetailsScreen() {
     }
   };
 
-  // Check if competition is OPEN (available for group creation)
-  // Lógica:
-  // - Cuando está EN CURSO: se puede crear y acceder a grupos
-  // - Cuando está CERRADA: NO se pueden crear más grupos, PERO se pueden ver los existentes
   const isCompetitionOpen = (comp: CompetitionDetailsResponse | null): boolean => {
     if (!comp) {
-      console.log('🔍 isCompetitionOpen: Competition is null');
       return false;
     }
     
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     
-    // Verificar si la competencia está cerrada (poolDisabledDate)
     const disabledDate = comp.poolDisabledDate || comp.poolDisbaledDate;
     if (disabledDate) {
       const closedDate = new Date(disabledDate);
       closedDate.setHours(0, 0, 0, 0);
       
-      // Si hoy es después de la fecha de cierre, no se puede crear grupos
       if (today > closedDate) {
-        console.log('🔍 isCompetitionOpen: Competition is CLOSED (disabled date passed)');
         return false;
       }
     }
     
     const availableDay = comp.poolAvailableDay || comp.poolaAvailableDay;
-    console.log('🔍 isCompetitionOpen:', {
-      competitionId: comp.id,
-      poolAvailableDay: comp.poolAvailableDay,
-      poolaAvailableDay: comp.poolaAvailableDay,
-      poolDisabledDate: comp.poolDisabledDate,
-      poolDisbaledDate: comp.poolDisbaledDate,
-      availableDay,
-      hasAvailableDay: !!availableDay,
-    });
+
     
     if (!availableDay) {
-      console.log('🔍 isCompetitionOpen: No availableDay found - BUTTON HIDDEN');
       return false;
     }
     
     const startDate = new Date(availableDay);
     startDate.setHours(0, 0, 0, 0);
     
-    // Se puede crear grupos desde el día de inicio (poolAvailableDay) en adelante
-    // Mientras la competencia esté en curso (no cerrada)
     const isOpen = today >= startDate;
-    
-    console.log('🔍 isCompetitionOpen:', {
-      today: today.toISOString().split('T')[0],
-      startDate: startDate.toISOString().split('T')[0],
-      isOpen,
-      buttonVisible: isOpen,
-    });
-    
-    if (isOpen) {
-      console.log('✅ BUTTON VISIBLE - Competition is OPEN (in progress)!');
-    } else {
-      console.log('❌ BUTTON HIDDEN - Competition has not started yet');
-    }
-    
     return isOpen;
   };
 
@@ -198,22 +153,7 @@ export default function CompetitionDetailsScreen() {
     }
     
     try {
-      console.log('🚀 Starting group creation process');
-      console.log('📊 Competition:', { id, category, competitionName: competition?.name });
-      console.log('📝 Group name:', groupName);
-      console.log('👥 Existing users to add:', existingUserIds.length, existingUserIds);
-      console.log('📧 Emails to invite:', inviteEmails.length, inviteEmails);
-      console.log('📅 Competition dates:', {
-        poolaAvailableDay: competition?.poolaAvailableDay,
-        startDate: competition?.startDate,
-        endDate: competition?.endDate,
-      });
-      
-      // PASO 2: Create group with all users and emails in one request
-      console.log('📤 Step 2: Creating group with participants...');
-      // Validar monto mínimo total fijo de $50 (se divide entre todos los participantes)
-      const MINIMUM_TOTAL_BET_AMOUNT = 50;
-      
+      const MINIMUM_TOTAL_BET_AMOUNT = 50;      
       if (totalBetAmount < MINIMUM_TOTAL_BET_AMOUNT) {
         Alert.alert(
           t('createGroupModal.minimumAmountError'),
@@ -232,27 +172,12 @@ export default function CompetitionDetailsScreen() {
         userIds: existingUserIds.length > 0 ? existingUserIds : undefined,
         invitedEmails: inviteEmails.length > 0 ? inviteEmails : undefined,
       };
-      console.log('📦 Request body:', requestBody);
       
       const response = await createGroup(requestBody);
-      
-      const groupId = response.group.groupId;
-      console.log('✅ Step 2 Complete: Group created successfully');
-      console.log('📦 Group ID:', groupId);
-      console.log('📦 Group response:', {
-        groupId: response.group.groupId,
-        competitionName: response.group.competitionName,
-        invitedEmails: response.invitedEmails,
-        addedUserIds: response.addedUserIds,
-      });
-      
-      // Close modal
       setShowCreateModal(false);
       
-      // Recargar lista de grupos para incluir el nuevo grupo
       await loadUserGroups();
       
-      // Show success message
       let message = t('groups.groupCreatedSuccess', { name: response.group.competitionName || groupName }) + '\n\n';
       
       if (response.addedUserIds && response.addedUserIds > 0) {
@@ -297,17 +222,8 @@ export default function CompetitionDetailsScreen() {
         message: err.message,
       });
       
-      // Handle 409 Conflict - Group already exists
-      // Backend validates: creatorUserId + competitionId already exists in database
       if (err.response?.status === 409) {
-        const conflictData = err.response.data;
-        console.log('⚠️ Group already exists:', {
-          existingGroupId: conflictData.existingGroupId,
-          existingGroupName: conflictData.existingGroupName,
-          message: conflictData.message,
-          fullGroup: conflictData.existingGroup,
-        });
-        
+        const conflictData = err.response.data;        
         Alert.alert(
           t('groups.groupAlreadyExists'),
           `${conflictData.message || t('groups.groupAlreadyExistsMessage')}\n\n` +
@@ -422,12 +338,7 @@ export default function CompetitionDetailsScreen() {
     );
   }
 
-  // Log before render
   const showCreateButton = isCompetitionOpen(competition);
-  console.log('🎯 RENDER DECISION:', {
-    competitionId: competition.id,
-    showCreateButton,
-  });
 
   return (
     <View style={styles.container}>

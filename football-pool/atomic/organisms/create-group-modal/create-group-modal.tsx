@@ -81,9 +81,8 @@ export const CreateGroupModal: React.FC<CreateGroupModalProps> = ({
       setIsValidating(true);
       const response = await validateEmails(emails);
       setValidatedUsers(response.users);
-      console.log('📧 Emails validated:', response);
     } catch (err: any) {
-      console.error('Error validating emails:', err);
+      console.warn('Error validating emails:', err);
     } finally {
       setIsValidating(false);
     }
@@ -91,8 +90,6 @@ export const CreateGroupModal: React.FC<CreateGroupModalProps> = ({
 
   const handleAddEmail = () => {
     const trimmedEmail = emailInput.trim().toLowerCase();
-    
-    // Basic email validation
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(trimmedEmail)) {
       Alert.alert(t('createGroupModal.invalidEmail'), t('createGroupModal.invalidEmailMessage'));
@@ -168,28 +165,15 @@ export const CreateGroupModal: React.FC<CreateGroupModalProps> = ({
         return;
       }
       
-      // Calcular monto por usuario (se divide equitativamente)
       const calculatedPerUser = betAmount / totalUsers;
       
-      // Create group with validated users
-      // Users with exists: true should have userId
       const existingUserIds = validatedUsers
         .filter(u => u.exists && u.userId)
-        .map(u => u.userId!); // Non-null assertion since we filtered
+        .map(u => u.userId!);
       
-      // Users with exists: false will receive email invitation
       const inviteEmails = validatedUsers
         .filter(u => !u.exists)
         .map(u => u.email);
-      
-      console.log('📋 Group creation summary:', {
-        existingUsers: existingUserIds.length,
-        inviteEmails: inviteEmails.length,
-        groupName: groupName || 'Auto-generated',
-        totalBetAmount: betAmount,
-        totalUsers: totalUsers,
-        equitableAmountPerUser: calculatedPerUser.toFixed(2),
-      });
       
       await onCreate(groupName || undefined, existingUserIds, inviteEmails, betAmount);
       

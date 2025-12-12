@@ -18,26 +18,20 @@ export default function HomeScreen() {
   const router = useRouter();
   const { localData } = useAppContext();
 
-  // Cargar competiciones del backend
   useEffect(() => {
     loadCompetitions();
     loadUserGroups();
   }, []);
 
-  // Cargar grupos del usuario para detectar qué competencias tienen grupos
   const loadUserGroups = async () => {
-    debugger;
     try {
       const response = await getUserGroups();
-      // Crear un Set con los competitionIds de los grupos del usuario
       const competitionIds = new Set(
         response.groups.map((group) => group.competitionId)
       );
       setUserGroupsCompetitionIds(competitionIds);
-      console.log('📊 User Groups Competition IDs:', Array.from(competitionIds));
     } catch (err: any) {
       console.error('Error loading user groups:', err);
-      // No mostrar error, simplemente no marcar competencias como con grupo
     }
   };
 
@@ -46,15 +40,12 @@ export default function HomeScreen() {
       setIsLoading(true);
       setError(null);
       const data = await getAllCompetitions();
-      
-      // Validar estructura de respuesta
       if (!data || typeof data !== 'object') {
         console.error('❌ Invalid response structure:', data);
         setError(t('competitions.error') + ': Invalid response structure');
         return;
       }
       
-      // Asegurar que las propiedades existan (pueden ser arrays vacíos)
       const validatedData: CompetitionsResponse = {
         fifaNationalTeamCups: Array.isArray(data.fifaNationalTeamCups) 
           ? data.fifaNationalTeamCups 
@@ -66,12 +57,6 @@ export default function HomeScreen() {
           ? data.nationalClubLeagues 
           : [],
       };
-      
-      console.log('✅ Competitions loaded:', {
-        fifaNationalTeamCups: validatedData.fifaNationalTeamCups.length,
-        fifaOfficialClubCups: validatedData.fifaOfficialClubCups.length,
-        nationalClubLeagues: validatedData.nationalClubLeagues.length,
-      });
       
       setCompetitionsData(validatedData);
     } catch (err: any) {
@@ -93,7 +78,6 @@ export default function HomeScreen() {
     }
   };
 
-  // Buscar competiciones cuando cambia el query
   useEffect(() => {
     if (searchQuery.trim()) {
       handleSearch();
@@ -118,7 +102,6 @@ export default function HomeScreen() {
   };
 
   const handleCategoryPress = (category: string, title: string) => {
-    console.log('Category selected:', category);
     router.push({
       pathname: '/category-competitions',
       params: { category, title },
@@ -126,7 +109,6 @@ export default function HomeScreen() {
   };
 
   const handleCardPress = (id: string, category: string) => {
-    console.log('Competition selected:', id);
     router.push({
       pathname: '/competition-details',
       params: { id, category },
@@ -134,7 +116,6 @@ export default function HomeScreen() {
   };
 
   const handleViewGroups = (competitionId: string, competitionName: string, category: string) => {
-    console.log('View groups for competition:', competitionId);
     router.push({
       pathname: '/competition-groups',
       params: { 

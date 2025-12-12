@@ -1,5 +1,6 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { View, Image, Text, StyleSheet, ImageStyle, TextStyle, ViewStyle } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { getTeamImageUrlById } from '@/utils/team-image-helper';
 import { Team } from '@/services/competitions/competition-types';
 
@@ -20,50 +21,80 @@ export const TeamImage: React.FC<TeamImageProps> = ({
   fallbackFlag,
   style: imageStyle = 'table',
 }) => {
+  const [imageError, setImageError] = useState(false);
   const styles = getStyleForType(imageStyle);
   
+  // Siempre renderizar el contenedor circular para mantener el tamaño consistente
+  const renderContainer = (content: React.ReactNode) => (
+    <View style={styles.container}>
+      {content}
+    </View>
+  );
+
   if (!category || !teamId) {
-    // Fallback a emoji si no hay categoría o teamId
-    return fallbackFlag ? (
-      <Text style={styles.flag}>{fallbackFlag}</Text>
-    ) : null;
+    // Fallback a emoji si no hay categoría o teamId, pero dentro del contenedor circular
+    return renderContainer(
+      fallbackFlag ? (
+        <Text style={styles.flag}>{fallbackFlag}</Text>
+      ) : (
+        <Ionicons name="football-outline" size={styles.iconSize} color="#9CA3AF" />
+      )
+    );
   }
 
   const imageUrl = getTeamImageUrlById(teamId, teamsMap, category);
 
-  if (imageUrl) {
-    return (
-      <View style={styles.container}>
-        <Image
-          source={{ uri: imageUrl }}
-          style={styles.image}
-          resizeMode="contain"
-          onError={() => {
-            console.log('Error loading team image:', imageUrl);
-          }}
-        />
-      </View>
+  if (!imageUrl) {
+    // Si no hay URL, mostrar fallback dentro del contenedor
+    return renderContainer(
+      fallbackFlag ? (
+        <Text style={styles.flag}>{fallbackFlag}</Text>
+      ) : (
+        <Ionicons name="football-outline" size={styles.iconSize} color="#9CA3AF" />
+      )
     );
   }
 
-  // Fallback a emoji si no hay imagen disponible
-  return fallbackFlag ? (
-    <Text style={styles.flag}>{fallbackFlag}</Text>
-  ) : null;
+  // Si hubo error o no hay imagen válida, mostrar fallback
+  if (imageError) {
+    return renderContainer(
+      fallbackFlag ? (
+        <Text style={styles.flag}>{fallbackFlag}</Text>
+      ) : (
+        <Ionicons name="football-outline" size={styles.iconSize} color="#9CA3AF" />
+      )
+    );
+  }
+
+  // Intentar cargar la imagen
+  return renderContainer(
+    <Image
+      source={{ uri: imageUrl }}
+      style={styles.image}
+      resizeMode="contain"
+      onError={() => {
+        setImageError(true);
+        console.warn('Error loading team image, using fallback');
+      }}
+      onLoadStart={() => {
+        setImageError(false);
+      }}
+    />
+  );
 };
 
 const getStyleForType = (type: 'table' | 'match' | 'modal') => {
   switch (type) {
     case 'table':
-      return StyleSheet.create({
+      return {
         container: {
-          width: 32,
-          height: 32,
-          borderRadius: 16,
+          width: 24,
+          height: 24,
+          borderRadius: 12,
           backgroundColor: '#FFFFFF',
           justifyContent: 'center',
           alignItems: 'center',
-          marginRight: 8,
+          marginRight: 6,
           overflow: 'hidden',
           shadowColor: '#000',
           shadowOffset: {
@@ -73,18 +104,18 @@ const getStyleForType = (type: 'table' | 'match' | 'modal') => {
           shadowOpacity: 0.1,
           shadowRadius: 2,
           elevation: 2,
-        },
+        } as ViewStyle,
         image: {
-          width: 28,
-          height: 28,
+          width: 20,
+          height: 20,
         } as ImageStyle,
         flag: {
-          fontSize: 20,
-          marginRight: 4,
+          fontSize: 16,
         } as TextStyle,
-      });
+        iconSize: 14,
+      };
     case 'match':
-      return StyleSheet.create({
+      return {
         container: {
           width: 40,
           height: 40,
@@ -102,7 +133,7 @@ const getStyleForType = (type: 'table' | 'match' | 'modal') => {
           shadowOpacity: 0.15,
           shadowRadius: 3,
           elevation: 3,
-        },
+        } as ViewStyle,
         image: {
           width: 36,
           height: 36,
@@ -110,9 +141,10 @@ const getStyleForType = (type: 'table' | 'match' | 'modal') => {
         flag: {
           fontSize: 24,
         } as TextStyle,
-      });
+        iconSize: 22,
+      };
     case 'modal':
-      return StyleSheet.create({
+      return {
         container: {
           width: 48,
           height: 48,
@@ -130,7 +162,7 @@ const getStyleForType = (type: 'table' | 'match' | 'modal') => {
           shadowOpacity: 0.2,
           shadowRadius: 4,
           elevation: 4,
-        },
+        } as ViewStyle,
         image: {
           width: 44,
           height: 44,
@@ -138,9 +170,10 @@ const getStyleForType = (type: 'table' | 'match' | 'modal') => {
         flag: {
           fontSize: 32,
         } as TextStyle,
-      });
+        iconSize: 26,
+      };
     default:
-      return StyleSheet.create({
+      return {
         container: {
           width: 32,
           height: 32,
@@ -158,16 +191,16 @@ const getStyleForType = (type: 'table' | 'match' | 'modal') => {
           shadowOpacity: 0.1,
           shadowRadius: 2,
           elevation: 2,
-        },
+        } as ViewStyle,
         image: {
           width: 28,
           height: 28,
         } as ImageStyle,
         flag: {
           fontSize: 20,
-          marginRight: 4,
         } as TextStyle,
-      });
+        iconSize: 18,
+      };
   }
 };
 

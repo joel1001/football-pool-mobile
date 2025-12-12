@@ -31,7 +31,6 @@ export default function CategoryCompetitionsScreen() {
         response.groups.map((group) => group.competitionId)
       );
       setUserGroupsCompetitionIds(competitionIds);
-      console.log('📊 User Groups Competition IDs:', Array.from(competitionIds));
     } catch (err: any) {
       console.error('Error loading user groups:', err);
     }
@@ -61,7 +60,6 @@ export default function CategoryCompetitionsScreen() {
   };
 
   const handleViewGroups = (competitionId: string, competitionName: string) => {
-    console.log('View groups for competition:', competitionId);
     router.push({
       pathname: '/competition-groups',
       params: { 

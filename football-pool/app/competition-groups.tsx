@@ -1,18 +1,18 @@
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Modal, TextInput, Alert } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Modal, TextInput, Alert, Animated } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useState, useEffect } from 'react';
 import { getUserGroups, getGroupMatches, patchGroup, inviteUser, deleteGroup } from '@/services/groups';
 import { Group, Match } from '@/services/groups/group-types';
-import { saveUserPrediction, getUserPredictions, getUserPrediction } from '@/services/auth/auth-service';
-import { UserPrediction } from '@/services/auth/auth-types';
+import { savePrediction } from '@/services/predictions';
+import { SavePredictionRequest, UserPrediction } from '@/services/predictions/prediction-types';
 import { LinearGradient } from 'expo-linear-gradient';
 import { AnimatedBackgroundPenalty, ProfileBadge } from '@/atomic';
 import { useTranslation } from 'react-i18next';
 import { useAppContext } from '@/context/app-context';
 import { getUserIdFromToken } from '@/services/services-config';
-import { getCompetitionTeams } from '@/services/competitions';
-import { Team } from '@/services/competitions/competition-types';
+import { getCompetitionTeams, getTournamentStructure, getCompetitionDetails } from '@/services/competitions';
+import { Team, TournamentStructure, TournamentMatch, Competition } from '@/services/competitions/competition-types';
 import { TeamImage } from '@/atomic/atoms/team-image';
 
 export default function CompetitionGroupsScreen() {
@@ -36,12 +36,18 @@ export default function CompetitionGroupsScreen() {
   const [expandedTournamentGroups, setExpandedTournamentGroups] = useState<Set<string>>(new Set()); // Para grupos del torneo (A, B, C, etc.)
   const [allMatches, setAllMatches] = useState<Match[]>([]);
   const [loadingMatches, setLoadingMatches] = useState(false);
+  const [tournamentStructure, setTournamentStructure] = useState<TournamentStructure | null>(null);
+  const [loadingTournamentStructure, setLoadingTournamentStructure] = useState(false);
+  const [competition, setCompetition] = useState<Competition | null>(null);
   const [selectedMatch, setSelectedMatch] = useState<{ groupId: string; match: Match } | null>(null);
   const [predictionModalVisible, setPredictionModalVisible] = useState(false);
   const [team1Score, setTeam1Score] = useState('');
   const [team2Score, setTeam2Score] = useState('');
   const [savingPrediction, setSavingPrediction] = useState(false);
   const [userPredictions, setUserPredictions] = useState<Record<string, UserPrediction>>({});
+  const [showSuccessCheck, setShowSuccessCheck] = useState(false);
+  const [checkScale] = useState(new Animated.Value(0));
+  const [checkOpacity] = useState(new Animated.Value(0));
   
   // Estados para edición de monto de apuesta
   const [editingBetAmount, setEditingBetAmount] = useState<Record<string, boolean>>({});
@@ -62,7 +68,7 @@ export default function CompetitionGroupsScreen() {
 
   useEffect(() => {
     loadGroups();
-    // Asegurar que todos los grupos estén colapsados al cargar
+    // Asegurar que todos los grupos estén colapsados SOLO cuando cambia la competencia
     setExpandedGroupId(null);
     setExpandedMatchGroups(new Set());
     setExpandedTournamentGroups(new Set());
@@ -75,16 +81,21 @@ export default function CompetitionGroupsScreen() {
     }
   }, [category, competitionId]);
 
+  // Cargar estructura del torneo cuando tenemos category y competitionId
+  useEffect(() => {
+    if (category && competitionId && !tournamentStructure && !competition) {
+      loadTournamentStructure();
+    }
+  }, [category, competitionId]);
+
   // Cargar matches una sola vez cuando se cargan los grupos
   useEffect(() => {
     if (groups.length > 0 && allMatches.length === 0) {
       // Cargar matches usando el primer grupo (los matches son los mismos para todos)
       loadAllMatches(groups[0].groupId);
     }
-    // Asegurar que todos los grupos estén colapsados cuando se cargan
-    setExpandedGroupId(null);
-    setExpandedMatchGroups(new Set());
-    setExpandedTournamentGroups(new Set());
+    // NO resetear los paneles cuando se actualizan los grupos después de guardar predicciones
+    // Solo se resetean cuando cambia la competencia (ver useEffect con dependency [competitionId])
   }, [groups]);
 
   const loadTeams = async () => {
@@ -193,6 +204,94 @@ export default function CompetitionGroupsScreen() {
     }
   };
 
+  const loadTournamentStructure = async () => {
+    if (!category || !competitionId) return;
+
+    try {
+      setLoadingTournamentStructure(true);
+      
+      // NUEVA ARQUITECTURA: Los resultados reales están en competitions_service
+      // Obtener el competition completo para acceder a groupsKindTournament
+      // Este campo contiene: grupos, partidos, RESULTADOS REALES, estadísticas de equipos
+      // IMPORTANTE: Los resultados reales están AQUÍ, no en groups_service
+      const competitionData = await getCompetitionDetails(
+        category as 'fifaNationalTeamCups' | 'fifaOfficialClubCups' | 'nationalClubLeagues',
+        competitionId as string
+      );
+      
+      setCompetition(competitionData);
+      
+      // Si tiene groupsKindTournament (Club World Cup y otras competencias con grupos)
+      // Este campo contiene la estructura completa del torneo con resultados reales
+      // Estructura: groupsKindTournament.stages['group-stage'].groups[].matches[]
+      // Cada match tiene: team1Score, team2Score, isPlayed (resultados reales)
+      if (competitionData.groupsKindTournament) {
+        console.log('🏆 Using groupsKindTournament from competition:', {
+          category,
+          competitionId,
+          hasStages: !!competitionData.groupsKindTournament?.stages,
+        });
+        setTournamentStructure(competitionData.groupsKindTournament);
+        return;
+      }
+      
+      // Si no tiene groupsKindTournament, intentar obtener desde el endpoint tournament-structure
+      // (para competencias que usan otro formato)
+      try {
+        const response = await getTournamentStructure(
+          category as 'fifaNationalTeamCups' | 'fifaOfficialClubCups' | 'nationalClubLeagues',
+          competitionId as string
+        );
+        
+        console.log('🏆 Tournament Structure Loaded from endpoint:', {
+          category,
+          competitionId,
+          hasStages: !!response.tournamentStructure?.stages,
+        });
+        
+        setTournamentStructure(response.tournamentStructure);
+      } catch (endpointErr: any) {
+        console.warn('⚠️ Could not load tournament structure from endpoint:', endpointErr.message);
+      }
+    } catch (err: any) {
+      console.error('❌ Error loading competition details:', {
+        category,
+        competitionId,
+        status: err.response?.status,
+        error: err.response?.data?.error,
+      });
+    } finally {
+      setLoadingTournamentStructure(false);
+    }
+  };
+
+  // Función helper para encontrar un match en la estructura del torneo
+  const findMatchInTournament = (matchId: string): TournamentMatch | null => {
+    if (!tournamentStructure?.stages) return null;
+
+    for (const stage of Object.values(tournamentStructure.stages)) {
+      if (!stage) continue;
+
+      // Buscar en matches de knockout
+      if (stage.matches) {
+        const match = stage.matches.find(m => m.matchId === matchId);
+        if (match) return match;
+      }
+
+      // Buscar en matches de grupos
+      if (stage.groups) {
+        for (const group of stage.groups) {
+          if (group.matches) {
+            const match = group.matches.find(m => m.matchId === matchId);
+            if (match) return match;
+          }
+        }
+      }
+    }
+
+    return null;
+  };
+
   const loadAllMatches = async (groupId: string) => {
     if (allMatches.length > 0) {
       return; // Ya están cargados
@@ -207,22 +306,46 @@ export default function CompetitionGroupsScreen() {
         count: response.count,
       });
       
+      // Combinar matches del grupo con resultados reales de la estructura del torneo
+      const matchesWithRealScores = response.matches.map((match: Match) => {
+        const realMatch = findMatchInTournament(match.matchId);
+        if (realMatch) {
+          // Combinar datos: usar match del grupo como base y agregar resultados reales
+          return {
+            ...match,
+            // Resultados reales desde competitions
+            team1Score: realMatch.team1Score ?? match.team1Score,
+            team2Score: realMatch.team2Score ?? match.team2Score,
+            isPlayed: realMatch.isPlayed ?? match.isPlayed,
+            winnerTeamId: realMatch.winnerTeamId ?? match.winnerTeamId,
+            isDraw: realMatch.isDraw ?? match.isDraw,
+            extraTime: realMatch.extraTime ?? match.extraTime,
+            penalties: realMatch.penalties ?? match.penalties,
+            penaltiesTeam1Score: realMatch.penaltiesTeam1Score ?? match.penaltiesTeam1Score,
+            penaltiesTeam2Score: realMatch.penaltiesTeam2Score ?? match.penaltiesTeam2Score,
+          } as Match;
+        }
+        return match;
+      });
+      
       // Debug: Verificar si matchDay está llegando
-      if (response.matches && response.matches.length > 0) {
-        console.log('📅 Sample Match Data:', {
-          matchId: response.matches[0].matchId,
-          matchDay: response.matches[0].matchDay,
-          matchDate: response.matches[0].matchDate,
-          matchday: response.matches[0].matchday,
-          fullMatch: response.matches[0],
+      if (matchesWithRealScores && matchesWithRealScores.length > 0) {
+        console.log('📅 Sample Match Data (with real scores):', {
+          matchId: matchesWithRealScores[0].matchId,
+          matchDay: matchesWithRealScores[0].matchDay,
+          matchDate: matchesWithRealScores[0].matchDate,
+          matchday: matchesWithRealScores[0].matchday,
+          team1Score: matchesWithRealScores[0].team1Score,
+          team2Score: matchesWithRealScores[0].team2Score,
+          isPlayed: matchesWithRealScores[0].isPlayed,
         });
       }
       
-      setAllMatches(response.matches);
+      setAllMatches(matchesWithRealScores);
       
       // Cargar predicciones del usuario para estos matches
       // Usar el primer grupo para cargar predicciones (son las mismas para todos)
-      loadUserPredictions(groupId, response.matches);
+      loadUserPredictions(groupId, matchesWithRealScores);
     } catch (err: any) {
       console.error('❌ Error loading matches:', {
         groupId,
@@ -266,29 +389,162 @@ export default function CompetitionGroupsScreen() {
       // Obtener todas las predicciones del usuario para este grupo desde auth_service
       const response = await getUserPredictions(currentUserId, groupId);
       
+      // Validar que la respuesta tenga la estructura esperada
+      if (!response || typeof response !== 'object') {
+        console.warn('⚠️ Invalid response format from getUserPredictions:', response);
+        return;
+      }
+      
+      // Verificar si hay predicciones
+      if (!response.predictions || !Array.isArray(response.predictions)) {
+        console.log('ℹ️ User has no predictions yet for this group or invalid response format');
+        return;
+      }
+      
+      if (response.predictions.length === 0 || response.count === 0) {
+        console.log('ℹ️ User has no predictions yet for this group');
+        return;
+      }
+      
       // Crear un mapa de predicciones por matchId para acceso rápido
       const predictionsMap: Record<string, UserPrediction> = {};
       
-      if (response.predictions && response.predictions.length > 0) {
-        response.predictions.forEach((prediction) => {
-          // Usar matchId como clave para acceso rápido
-          predictionsMap[prediction.matchId] = prediction;
-        });
-      }
+      response.predictions.forEach((prediction, index) => {
+        // Validar que cada predicción tenga matchId antes de agregarla
+        if (!prediction || typeof prediction !== 'object') {
+          console.warn(`⚠️ Invalid prediction at index ${index}:`, prediction);
+          return;
+        }
+        if (!prediction.matchId || typeof prediction.matchId !== 'string') {
+          console.warn(`⚠️ Invalid prediction format (missing or invalid matchId) at index ${index}:`, prediction);
+          return;
+        }
+        predictionsMap[prediction.matchId] = prediction;
+      });
       
       setUserPredictions(prev => ({ ...prev, ...predictionsMap }));
       console.log('✅ User predictions loaded:', {
         groupId,
+        userId: response.userId,
         count: response.count,
         predictionsLoaded: Object.keys(predictionsMap).length,
       });
     } catch (err: any) {
-      console.log('⚠️ Error loading user predictions:', {
-        status: err.response?.status,
-        error: err.response?.data?.error,
-        message: err.message,
-      });
+      const status = err.response?.status;
+      const errorData = err.response?.data;
+      
+      // Manejo de errores según la documentación
+      if (status === 400) {
+        console.error('❌ Error de validación al cargar predicciones:', errorData?.error);
+        // Error de validación - no mostrar al usuario, solo log
+      } else if (status === 401) {
+        console.error('❌ No autorizado al cargar predicciones:', errorData?.error);
+        // Token expirado - ya se maneja en otros lugares, solo log aquí
+      } else if (status === 500) {
+        console.error('❌ Error del servidor al cargar predicciones:', {
+          status,
+          url: err.config?.url,
+          error: errorData?.error,
+          path: errorData?.path,
+          requestId: errorData?.requestId,
+        });
+        // Error del servidor - no mostrar al usuario, solo log
+        // No actualizar predicciones si hay error del servidor
+        return;
+      } else {
+        console.error('⚠️ Error inesperado al cargar predicciones:', {
+          status,
+          error: errorData?.error,
+          message: err.message,
+        });
+      }
       // No mostrar error al usuario, simplemente no cargar predicciones
+      // Las predicciones se pueden cargar más tarde o el usuario puede reintentar
+    }
+  };
+
+  /**
+   * Función para verificar si el botón de detalles debe estar deshabilitado (2 horas antes del partido)
+   * 
+   * Formato esperado de matchDay en la base de datos (MongoDB):
+   * - ISO 8601 con timezone: "2025-11-25T15:00:00.000+00:00"
+   * - ISO 8601 con UTC: "2025-11-20T15:00:00Z"
+   * - ISO 8601 solo fecha: "2025-11-20" (se interpreta como medianoche UTC)
+   * 
+   * El botón se deshabilita si faltan 2 horas o menos antes del partido
+   */
+  const isDetailsButtonDisabled = (match: Match | any): boolean => {
+    // Obtener la fecha del partido en UTC desde el backend
+    let matchDateUTCString: string | null = null;
+    
+    // PRIORIDAD 1: matchDate (campo principal)
+    if (match.matchDate) {
+      matchDateUTCString = match.matchDate;
+    }
+    // PRIORIDAD 2: matchDay si es una fecha ISO completa
+    else if (match.matchDay && typeof match.matchDay === 'string' && match.matchDay.includes('T')) {
+      matchDateUTCString = match.matchDay;
+    }
+    // PRIORIDAD 3: matchday como objeto MongoDB Date
+    else if (match.matchday && typeof match.matchday === 'object' && match.matchday !== null) {
+      const mongoDate = match.matchday as any;
+      if (mongoDate.$date) {
+        matchDateUTCString = mongoDate.$date;
+      }
+    }
+    // PRIORIDAD 4: matchday como string ISO
+    else if (match.matchday && typeof match.matchday === 'string' && match.matchday.includes('T')) {
+      matchDateUTCString = match.matchday;
+    }
+    
+    // Si no hay fecha, permitir el botón (habilitado)
+    if (!matchDateUTCString) {
+      console.warn('⚠️ No se encontró fecha para el match:', match.matchId);
+      return false; // HABILITADO
+    }
+    
+    try {
+      const now = new Date();
+      const matchDate = new Date(matchDateUTCString);
+      
+      // Validar fecha
+      if (isNaN(matchDate.getTime())) {
+        console.warn('⚠️ Fecha inválida:', matchDateUTCString);
+        return false; // HABILITADO
+      }
+      
+      // Calcular diferencia en horas
+      const diffMs = matchDate.getTime() - now.getTime();
+      const diffHours = diffMs / (1000 * 60 * 60);
+      
+      // Log detallado
+      console.log('⏰ Verificación botón:', {
+        matchId: match.matchId,
+        fechaUTC: matchDateUTCString,
+        fechaLocal: matchDate.toLocaleString(),
+        horaActual: now.toLocaleString(),
+        diffHoras: diffHours.toFixed(2),
+        resultado: diffHours > 0 && diffHours <= 2 ? 'DESHABILITAR' : 'HABILITAR',
+      });
+      
+      // REGLA:
+      // - Si el partido YA PASÓ (diffHours <= 0) → DESHABILITAR (return true)
+      // - Si faltan MÁS de 2 horas (diffHours > 2) → HABILITAR (return false)
+      // - Si faltan 2 horas o MENOS (0 < diffHours <= 2) → DESHABILITAR (return true)
+      
+      if (diffHours <= 0) {
+        return true; // Ya pasó → DESHABILITAR
+      }
+      
+      if (diffHours > 2) {
+        return false; // Faltan más de 2h → HABILITAR
+      }
+      
+      // 0 < diffHours <= 2
+      return true; // Faltan 2h o menos → DESHABILITAR
+    } catch (error) {
+      console.error('❌ Error:', error);
+      return false; // HABILITADO por defecto
     }
   };
 
@@ -355,14 +611,61 @@ export default function CompetitionGroupsScreen() {
     }
   };
 
-  const handleOpenPredictionModal = async (groupId: string, match: Match) => {
-    if (match.isPlayed) {
-      Alert.alert(t('predictions.matchPlayed'), t('predictions.cannotPredict'));
-      return;
+  const handleOpenPredictionModal = async (groupId: string, match: Match | any) => {
+    // VALIDACIÓN EN TIEMPO REAL: Verificar la fecha ANTES de abrir el modal
+    // Esto previene que se abra el modal si el usuario hizo clic justo cuando llegó a las 2 horas
+    let matchDateUTCString: string | null = null;
+    
+    // Obtener la fecha del partido
+    if (match.matchDate) {
+      matchDateUTCString = match.matchDate;
+    } else if (match.matchDay && typeof match.matchDay === 'string' && match.matchDay.includes('T')) {
+      matchDateUTCString = match.matchDay;
+    } else if (match.matchday && typeof match.matchday === 'object' && match.matchday !== null) {
+      const mongoDate = match.matchday as any;
+      if (mongoDate.$date) {
+        matchDateUTCString = mongoDate.$date;
+      }
+    } else if (match.matchday && typeof match.matchday === 'string' && match.matchday.includes('T')) {
+      matchDateUTCString = match.matchday;
     }
-
-    // Verificar si la predicción está deshabilitada por fecha
-    if (isPredictionDisabled(match)) {
+    
+    // Si hay fecha, validar en tiempo real
+    if (matchDateUTCString) {
+      const now = new Date(); // Hora actual en tiempo real
+      const matchDate = new Date(matchDateUTCString);
+      
+      if (!isNaN(matchDate.getTime())) {
+        const diffMs = matchDate.getTime() - now.getTime();
+        const diffHours = diffMs / (1000 * 60 * 60);
+        
+        // Validar: Si el partido ya pasó
+        if (diffHours <= 0) {
+          Alert.alert(
+            t('predictions.matchAlreadyPlayed'),
+            t('predictions.matchAlreadyPlayedMessage')
+          );
+          return;
+        }
+        
+        // Validar: Si faltan 2 horas o menos (validación en tiempo real)
+        if (diffHours <= 2) {
+          Alert.alert(
+            t('predictions.predictionDisabled'),
+            t('predictions.predictionDisabledMessage')
+          );
+          return;
+        }
+        
+        // Si faltan más de 2 horas, continuar con el flujo normal (abrir el modal)
+      }
+    }
+    
+    // Si no hay fecha válida, permitir continuar (por si acaso)
+    
+    // Verificar si la predicción está deshabilitada por fecha (1 día antes)
+    // Esta es una validación adicional que no depende de las 2 horas
+    if (isPredictionDisabled(match as Match)) {
       Alert.alert(
         t('predictions.predictionDisabled'),
         t('predictions.predictionDisabledMessage')
@@ -426,37 +729,199 @@ export default function CompetitionGroupsScreen() {
   const handleSavePrediction = async () => {
     if (!selectedMatch || !currentUserId) return;
 
-    const score1 = parseInt(team1Score);
-    const score2 = parseInt(team2Score);
+    console.log('🎯 [START] handleSavePrediction - Estado completo:', {
+      currentUserId,
+      competitionId,
+      category,
+      selectedMatch: {
+        matchId: selectedMatch.match.matchId,
+        team1: selectedMatch.match.team1Name,
+        team2: selectedMatch.match.team2Name,
+      },
+      totalGroupsInState: groups.length,
+      allGroups: groups.map(g => ({
+        groupId: g.groupId,
+        name: g.name,
+        competitionId: g.competitionId,
+      }))
+    });
 
-    if (isNaN(score1) || isNaN(score2) || score1 < 0 || score2 < 0) {
+    // Si el input está vacío o solo tiene espacios, tomarlo como 0
+    const score1 = (team1Score.trim() === '' || !team1Score) ? 0 : parseInt(team1Score) || 0;
+    const score2 = (team2Score.trim() === '' || !team2Score) ? 0 : parseInt(team2Score) || 0;
+
+    // Validar que no sean negativos (0 está permitido)
+    if (score1 < 0 || score2 < 0 || isNaN(score1) || isNaN(score2)) {
       Alert.alert(t('common.error'), t('common.invalidScores'));
-      return;
-    }
-
-    // Validar que el partido no haya sido jugado
-    if (selectedMatch.match.isPlayed) {
-      Alert.alert(
-        t('predictions.matchPlayed'),
-        t('predictions.cannotPredict')
-      );
       return;
     }
 
     try {
       setSavingPrediction(true);
       
-      // Guardar predicción en el documento del usuario usando auth_service
-      await saveUserPrediction(currentUserId, {
-        groupId: selectedMatch.groupId,
+      // USAR DIRECTAMENTE el estado groups que YA está filtrado por competitionId
+      // No necesitamos filtrar de nuevo porque loadGroups() ya filtró por competitionId
+      const competitionGroups = groups;
+      
+      console.log('🔍 [DEBUG] Grupos de la competencia (ya filtrados):', {
+        totalGroupsInState: groups.length,
+        competitionId: competitionId,
+        groups: competitionGroups.map(g => ({
+          groupId: g.groupId,
+          _id: (g as any)._id,
+          name: g.name,
+          competitionId: g.competitionId,
+          competitionName: g.competitionName,
+        }))
+      });
+      
+      // Extraer groupIds - usar _id PRIMERO (según documentación, son los _id de MongoDB)
+      // Si no existe _id, usar groupId como fallback
+      const groupIds = competitionGroups
+        .map(group => (group as any)._id || group.groupId)
+        .filter(id => id !== undefined && id !== null && id !== '');
+      
+      console.log('🔍 [DEBUG] GroupIds extraídos (usando _id primero):', {
+        groupIds,
+        count: groupIds.length,
+        groupIdsDetalle: groupIds.map((id, index) => ({
+          index,
+          id,
+          grupo: competitionGroups[index]?.name || 'Sin nombre',
+          tiene_id: !!(competitionGroups[index] as any)._id,
+          tiene_groupId: !!competitionGroups[index]?.groupId,
+          _id_original: (competitionGroups[index] as any)._id,
+          groupId_original: competitionGroups[index]?.groupId,
+        }))
+      });
+      
+      // Validar que haya al menos un grupo
+      if (groupIds.length === 0) {
+        console.error('❌ [ERROR] No se encontraron groupIds válidos');
+        console.error('❌ [ERROR] Estado de grupos:', {
+          totalGroups: groups.length,
+          competitionId,
+          todosLosGrupos: groups.map(g => ({
+            groupId: g.groupId,
+            name: g.name,
+            competitionId: g.competitionId
+          }))
+        });
+        Alert.alert(
+          t('common.error'),
+          t('predictions.errorNoGroupsForCompetition')
+        );
+        setSavingPrediction(false);
+        return;
+      }
+      
+      // Validar que competitionId esté presente (REQUERIDO)
+      if (!competitionId) {
+        Alert.alert(
+          t('common.error'),
+          'Competition ID is required'
+        );
+        setSavingPrediction(false);
+        return;
+      }
+      
+      // Obtener resultados reales del partido (vienen del servicio tournaments)
+      // Estos son los marcadores que se muestran al lado de los logos (match.team1Score, match.team2Score)
+      const realTeam1Score = selectedMatch.match.team1Score ?? 0;
+      const realTeam2Score = selectedMatch.match.team2Score ?? 0;
+      
+      // Crear el body de la predicción con el array de groupIds
+      const predictionBody: SavePredictionRequest = {
         matchId: selectedMatch.match.matchId,
-        team1Score: score1,
-        team2Score: score2,
+        competitionId: competitionId as string, // REQUERIDO
+        team1: selectedMatch.match.team1Name, // ⚠️ REQUERIDO: Nombre del equipo 1 (local)
+        team2: selectedMatch.match.team2Name, // ⚠️ REQUERIDO: Nombre del equipo 2 (visitante)
+        team1Score: score1, // ← Usuario ingresa esto (su predicción)
+        team2Score: score2, // ← Usuario ingresa esto (su predicción)
+        realTeam1Score: realTeam1Score, // ← Viene del servicio tournaments (match.team1Score)
+        realTeam2Score: realTeam2Score, // ← Viene del servicio tournaments (match.team2Score)
+        groupIds: groupIds, // Array de IDs de grupos
+      };
+      
+      // Agregar campos opcionales para fases de eliminación si están disponibles
+      // extraTime y realExtraTime (si el partido ya se jugó y tuvo tiempo extra)
+      if (selectedMatch.match.extraTime !== undefined && selectedMatch.match.extraTime !== null) {
+        predictionBody.realExtraTime = selectedMatch.match.extraTime;
+      }
+      
+      // Penales reales (si el partido ya se jugó y se definió por penales)
+      if (selectedMatch.match.penaltiesTeam1Score !== undefined && selectedMatch.match.penaltiesTeam1Score !== null) {
+        predictionBody.penaltiesteam1Score = selectedMatch.match.penaltiesTeam1Score;
+      }
+      
+      if (selectedMatch.match.penaltiesTeam2Score !== undefined && selectedMatch.match.penaltiesTeam2Score !== null) {
+        predictionBody.penaltiesteam2Score = selectedMatch.match.penaltiesTeam2Score;
+      }
+      
+      // Campos opcionales para knockout (si están disponibles en el futuro)
+      // if (userExtraTime !== undefined) predictionBody.userExtraTime = userExtraTime;
+      // if (userPenalties !== undefined) predictionBody.userPenalties = userPenalties;
+      // if (userPenaltiesTeam1Score !== undefined) predictionBody.userPenaltiesTeam1Score = userPenaltiesTeam1Score;
+      // if (userPenaltiesTeam2Score !== undefined) predictionBody.userPenaltiesTeam2Score = userPenaltiesTeam2Score;
+      
+      // 🚨 LOGS DETALLADOS PARA VERIFICAR GROUP_IDS
+      console.log('🚨 [GROUP_IDS_BEFORE_SAVE] ANTES de guardar predicción:', {
+        groupIds: groupIds,
+        groupIdsCount: groupIds.length,
+        groupIdsType: typeof groupIds,
+        groupIdsIsArray: Array.isArray(groupIds),
+        groupIdsStringified: JSON.stringify(groupIds),
+        competitionId: competitionId,
+        allGroups: groups.map(g => ({
+          groupId: g.groupId,
+          _id: (g as any)._id,  // ⚠️ IMPORTANTE: Los _id son los que debemos enviar
+          competitionId: g.competitionId,
+          name: g.name,
+        })),
+        filteredGroups: groups.filter(g => g.competitionId === competitionId).map(g => ({
+          groupId: g.groupId,
+          _id: (g as any)._id,  // ⚠️ Este es el valor que debe ir en groupIds
+          competitionId: g.competitionId,
+          name: g.name,
+        })),
+        // Verificar que todos los groupIds sean _id de MongoDB
+        groupIdsAreValid: groupIds.every(id => {
+          const group = competitionGroups.find(g => (g as any)._id === id || g.groupId === id);
+          return group && ((group as any)._id === id);
+        }),
       });
 
-      // Actualizar predicción local
+      console.log('📤 [SENDING] Enviando predicción al backend:', {
+        userId: currentUserId,
+        predictionBody: JSON.stringify(predictionBody, null, 2),
+        totalGroups: groupIds.length,
+        groupIds: groupIds,
+        matchInfo: {
+          matchId: selectedMatch.match.matchId,
+          team1Name: selectedMatch.match.team1Name,
+          team2Name: selectedMatch.match.team2Name,
+        }
+      });
+      
+      // Enviar UNA SOLA REQUEST con el array de groupIds usando el NUEVO servicio de predicciones
+      const predictionResponse = await savePrediction(currentUserId, predictionBody);
+
+      console.log('✅ [RESPONSE] Predicción guardada - Respuesta completa del backend:', {
+        fullResponse: JSON.stringify(predictionResponse, null, 2),
+        groupsApplied: predictionResponse.groupsApplied?.map(g => ({
+          groupId: g.groupId || 'UNDEFINED',
+          groupName: g.groupName || 'UNDEFINED',
+          points: g.points,
+          pointsCalculated: g.pointsCalculated,
+          totalScore: g.totalScore,
+        })) || [],
+        groupsAppliedCount: predictionResponse.groupsApplied?.length || 0,
+      });
+
+      // Actualizar predicción local (usar el primer grupo como referencia para compatibilidad)
+      const firstGroupId = predictionResponse.groupsApplied?.[0]?.groupId || selectedMatch.groupId;
       const newPrediction: UserPrediction = {
-        groupId: selectedMatch.groupId,
+        groupId: firstGroupId,
         matchId: selectedMatch.match.matchId,
         team1Score: score1,
         team2Score: score2,
@@ -468,16 +933,87 @@ export default function CompetitionGroupsScreen() {
         [selectedMatch.match.matchId]: newPrediction,
       }));
 
-      Alert.alert(t('common.success'), t('predictions.saved'));
+      // NO recargar grupos para evitar parpadeo y pérdida de foco/scroll
+      // Los grupos se actualizarán automáticamente cuando el usuario navegue o recargue manualmente
+      // El backend ya actualizó los scores, pero no necesitamos recargar inmediatamente
+      
+      // Mostrar check de éxito con animación
+      setShowSuccessCheck(true);
+      
+      // Animación de entrada
+      Animated.parallel([
+        Animated.spring(checkScale, {
+          toValue: 1,
+          useNativeDriver: true,
+          tension: 50,
+          friction: 7,
+        }),
+        Animated.timing(checkOpacity, {
+          toValue: 1,
+          duration: 200,
+          useNativeDriver: true,
+        }),
+      ]).start();
+
+      // Ocultar después de 1.5 segundos con animación de salida
+      setTimeout(() => {
+        Animated.parallel([
+          Animated.timing(checkScale, {
+            toValue: 0,
+            duration: 200,
+            useNativeDriver: true,
+          }),
+          Animated.timing(checkOpacity, {
+            toValue: 0,
+            duration: 200,
+            useNativeDriver: true,
+          }),
+        ]).start(() => {
+          setShowSuccessCheck(false);
+        });
+      }, 1500);
+
       setPredictionModalVisible(false);
       setSelectedMatch(null);
       setTeam1Score('');
       setTeam2Score('');
     } catch (err: any) {
-      console.error('Error saving prediction:', err);
+      console.error('❌ Error saving prediction:', {
+        error: err,
+        response: err.response?.data,
+        status: err.response?.status,
+        url: err.config?.url,
+        requestBody: err.config?.data,
+      });
+      
+      // Manejar errores específicos del backend según la documentación
+      const errorMessage = err.response?.data?.error || err.message || t('predictions.error');
+      let userFriendlyMessage = errorMessage;
+      
+      // Casos de error específicos según la documentación
+      if (err.response?.status === 500) {
+        // Error 500 - Error interno del servidor
+        userFriendlyMessage = 'Error al guardar la predicción. Por favor intenta de nuevo. Si el problema persiste, contacta al soporte.';
+        console.error('❌ [BACKEND_ERROR_500] Error interno del servidor. El body enviado fue correcto. Verifica los logs del backend para más detalles.');
+      } else if (err.response?.status === 404) {
+        // Error 404 - el backend no encontró el partido o el usuario no tiene grupos
+        if (errorMessage.includes('Match not found')) {
+          // El backend ahora permite crear predicciones incluso si el match no existe
+          // Este error solo debería ocurrir si hay un problema de conexión o configuración
+          userFriendlyMessage = t('predictions.errorMatchNotFound') || 
+            'No se pudo encontrar el partido. Por favor verifica que el partido existe y que tienes grupos en este torneo.';
+        } else {
+          // Error 404 genérico
+          userFriendlyMessage = t('predictions.errorMatchNotFound') || 
+            'No se pudo procesar la predicción. Por favor intenta de nuevo.';
+        }
+      } else if (errorMessage.includes('All fields are required') || errorMessage.includes('Required fields')) {
+        userFriendlyMessage = t('predictions.errorRequiredFields');
+      }
+      
       Alert.alert(
         t('common.error'),
-        err.response?.data?.error || t('predictions.error')
+        userFriendlyMessage
       );
     } finally {
       setSavingPrediction(false);
@@ -1006,6 +1542,111 @@ export default function CompetitionGroupsScreen() {
                                 )}
                               </>
                             )}
+
+                            {/* Tabla de Scores (Scoreboard) - Siempre visible */}
+                            <View style={styles.scoresTableSection}>
+                              <View style={styles.scoresTableHeader}>
+                                <Ionicons name="trophy" size={20} color="#1A4D3A" />
+                                <Text style={styles.scoresTableTitle}>{t('groups.scoresTable')}</Text>
+                              </View>
+                              
+                              {/* Mostrar última actualización si está disponible */}
+                              {group.scoreboard?.users && group.scoreboard.users.length > 0 && group.scoreboard.users[0]?.lastUpdated && (
+                                <Text style={styles.scoresTableSubtitle}>
+                                  {t('groups.lastUpdated')}: {new Date(group.scoreboard.users[0].lastUpdated).toLocaleString('es-ES', {
+                                    day: 'numeric',
+                                    month: 'short',
+                                    hour: '2-digit',
+                                    minute: '2-digit',
+                                  })}
+                                </Text>
+                              )}
+                              
+                              {group.scoreboard?.users && group.scoreboard.users.length > 0 ? (
+                                <View style={styles.scoresTable}>
+                                  {/* Header de la tabla */}
+                                  <View style={styles.scoresTableHeaderRow}>
+                                    <View style={styles.scoresTableHeaderCellPosition}>
+                                      <Text style={styles.scoresTableHeaderText}>#</Text>
+                                    </View>
+                                    <View style={styles.scoresTableHeaderCellName}>
+                                      <Text style={styles.scoresTableHeaderText}>{t('groups.playerName')}</Text>
+                                    </View>
+                                    <View style={styles.scoresTableHeaderCellScore}>
+                                      <Text style={styles.scoresTableHeaderText}>{t('groups.score')}</Text>
+                                    </View>
+                                  </View>
+                                  
+                                  {/* Filas de usuarios del scoreboard (ordenados por posición) */}
+                                  {(() => {
+                                    // Ordenar por posición por si acaso (aunque ya vienen ordenados del backend)
+                                    const sortedUsers = [...group.scoreboard.users].sort((a, b) => a.position - b.position);
+                                    
+                                    return sortedUsers.map((user) => {
+                                      const isCurrentUser = user.userId === currentUserId;
+                                      const isCreator = user.userId === group.creatorUserId;
+                                      
+                                      return (
+                                        <View 
+                                          key={user.userId} 
+                                          style={[
+                                            styles.scoresTableRow,
+                                            isCurrentUser && styles.scoresTableRowCurrentUser,
+                                            user.position === 1 && styles.scoresTableRowFirst
+                                          ]}
+                                        >
+                                          <View style={styles.scoresTableCellPosition}>
+                                            {user.position === 1 ? (
+                                              <Ionicons name="trophy" size={16} color="#FFD700" />
+                                            ) : user.position === 2 ? (
+                                              <Ionicons name="medal" size={16} color="#C0C0C0" />
+                                            ) : user.position === 3 ? (
+                                              <Ionicons name="medal" size={16} color="#CD7F32" />
+                                            ) : (
+                                              <Text style={styles.scoresTablePositionText}>{user.position}</Text>
+                                            )}
+                                          </View>
+                                          <View style={styles.scoresTableCellName}>
+                                            <Text 
+                                              style={[
+                                                styles.scoresTableNameText,
+                                                isCurrentUser && styles.scoresTableNameTextCurrentUser
+                                              ]}
+                                              numberOfLines={1}
+                                            >
+                                              {user.userName}
+                                            </Text>
+                                            {isCreator && (
+                                              <View style={styles.scoresTableCreatorBadge}>
+                                                <Text style={styles.scoresTableCreatorBadgeText}>
+                                                  {t('groups.creator')}
+                                                </Text>
+                                              </View>
+                                            )}
+                                          </View>
+                                          <View style={styles.scoresTableCellScore}>
+                                            <Text style={[
+                                              styles.scoresTableScoreText,
+                                              isCurrentUser && styles.scoresTableScoreTextCurrentUser
+                                            ]}>
+                                              {user.score}
+                                            </Text>
+                                            <Text style={styles.scoresTableScoreLabel}>pts</Text>
+                                          </View>
+                                        </View>
+                                      );
+                                    });
+                                  })()}
+                                </View>
+                              ) : (
+                                <View style={styles.scoresTableEmpty}>
+                                  <Ionicons name="trophy-outline" size={32} color="#9CA3AF" />
+                                  <Text style={styles.scoresTableEmptyText}>
+                                    {t('groups.noScoresYet')}
+                                  </Text>
+                                </View>
+                              )}
+                            </View>
                             
                             {/* Botón para cancelar grupo (solo creador) */}
                             {group.creatorUserId === currentUserId && (
@@ -1086,18 +1727,35 @@ export default function CompetitionGroupsScreen() {
                     <ActivityIndicator size="small" color="#1A4D3A" />
                     <Text style={styles.matchesLoadingText}>{t('matches.loading')}</Text>
                   </View>
-                ) : allMatches.length > 0 ? (
+                ) : (allMatches.length > 0 || (tournamentStructure?.stages?.['group-stage']?.groups)) ? (
                   <>
                     {/* Partidos agrupados por grupo */}
-                    {Object.entries(matchesByGroup).map(([groupLetter, matches]) => {
-                      const isMatchGroupExpanded = expandedMatchGroups.has(groupLetter);
+                    {(() => {
+                      // Si tenemos groupsKindTournament, usar directamente los grupos del torneo
+                      // De lo contrario, usar allMatches agrupados
+                      const groupStage = tournamentStructure?.stages?.['group-stage'];
                       
-                      // Obtener la tabla de posiciones para este grupo del torneo
-                      const firstGroup = groups[0];
-                      const groupStage = firstGroup?.tournamentStructure?.stages?.['group-stage'];
-                      const tournamentGroup = groupStage?.groups?.find(g => g.groupLetter === groupLetter);
+                      if (groupStage?.groups) {
+                        // Usar matches directamente de groupsKindTournament
+                        return groupStage.groups.map((tournamentGroup) => {
+                          const groupLetter = tournamentGroup.groupLetter;
+                          const isMatchGroupExpanded = expandedMatchGroups.has(groupLetter);
+                          // IMPORTANTE: Los matches aquí ya tienen los resultados reales (team1Score, team2Score)
+                          // Filtrar solo matches con equipos definidos
+                          const matches = (tournamentGroup.matches || []).filter(m => m.team1Id && m.team2Id);
+                          
+                          // Debug: Log para verificar los scores reales
+                          if (groupLetter === 'A' && matches.length > 0) {
+                            console.log('🏆 Grupo A matches con scores reales:', matches.map(m => ({
+                              matchId: m.matchId,
+                              team1Score: m.team1Score,
+                              team2Score: m.team2Score,
+                              team1Name: m.team1Name,
+                              team2Name: m.team2Name,
+                            })));
+                          }
                       
-                      return (
+                          return (
                         <View key={groupLetter} style={styles.groupMatchesSection}>
                           <TouchableOpacity
                             style={styles.groupMatchesHeader}
@@ -1239,9 +1897,11 @@ export default function CompetitionGroupsScreen() {
                                 </View>
                               )}
                               
-                              {/* Lista de partidos */}
+                              {/* Lista de partidos - Filtrar solo matches con equipos definidos */}
                               <View style={styles.matchesList}>
-                          {matches.map((match) => {
+                          {matches
+                            .filter(m => m.team1Id && m.team2Id) // Solo matches con equipos definidos
+                            .map((match) => {
                             const userPrediction = userPredictions[match.matchId];
                             // Usar el primer grupo para las predicciones (son las mismas para todos)
                             const firstGroupId = groups[0]?.groupId || '';
@@ -1279,7 +1939,7 @@ export default function CompetitionGroupsScreen() {
                                       // Si matchday es un número, no es una fecha
                                       else {
                                         // Usar matchDay o matchDate como fallback
-                                        dateValue = match.matchDay || match.matchDate;
+                                        dateValue = match.matchDay || match.matchDate || null;
                                       }
                                       
                                       if (dateValue) {
@@ -1331,7 +1991,7 @@ export default function CompetitionGroupsScreen() {
                                         style="match"
                                       />
                                       {/* Mostrar marcador real junto al logo del equipo 1 */}
-                                      {match.team1Score !== null && (
+                                      {(match.team1Score !== null && match.team1Score !== undefined) && (
                                         <Text style={styles.realScoreNextToLogo}>
                                           {match.team1Score}
                                         </Text>
@@ -1344,7 +2004,7 @@ export default function CompetitionGroupsScreen() {
                                   
                                   <View style={styles.matchScore}>
                                     {/* Mostrar "vs" o separador si no hay marcadores reales */}
-                                    {match.team1Score === null || match.team2Score === null ? (
+                                    {(match.team1Score === null || match.team1Score === undefined || match.team2Score === null || match.team2Score === undefined) ? (
                                       <Text style={styles.matchScoreText}>{t('matches.vs')}</Text>
                                     ) : (
                                       <Text style={styles.matchScoreSeparator}>-</Text>
@@ -1367,7 +2027,7 @@ export default function CompetitionGroupsScreen() {
                                         style="match"
                                       />
                                       {/* Mostrar marcador real junto al logo del equipo 2 */}
-                                      {match.team2Score !== null && (
+                                      {(match.team2Score !== null && match.team2Score !== undefined) && (
                                         <Text style={styles.realScoreNextToLogo}>
                                           {match.team2Score}
                                         </Text>
@@ -1379,25 +2039,32 @@ export default function CompetitionGroupsScreen() {
                                   </View>
                                 </View>
 
-                                {!match.isPlayed && (
-                                  <TouchableOpacity
-                                    style={styles.detailsButton}
-                                    onPress={() => handleOpenPredictionModal(firstGroupId, match)}
-                                    activeOpacity={0.8}
-                                  >
-                                    <LinearGradient
-                                      colors={['#10B981', '#059669']}
-                                      start={{ x: 0, y: 0 }}
-                                      end={{ x: 1, y: 0 }}
-                                      style={styles.detailsButtonGradient}
+                                {!match.isPlayed && (() => {
+                                  const isDisabled = isDetailsButtonDisabled(match);
+                                  return (
+                                    <TouchableOpacity
+                                      style={[
+                                        styles.detailsButton,
+                                        isDisabled && styles.detailsButtonDisabled
+                                      ]}
+                                      onPress={() => handleOpenPredictionModal(firstGroupId, match)}
+                                      activeOpacity={isDisabled ? 1 : 0.8}
+                                      disabled={false} // Siempre permitir presionar para mostrar el modal
                                     >
-                                      <Ionicons name="create-outline" size={16} color="#FFFFFF" />
-                                      <Text style={styles.detailsButtonText}>
-                                        {userPrediction ? t('matches.editPrediction') : t('common.details')}
-                                      </Text>
-                                    </LinearGradient>
-                                  </TouchableOpacity>
-                                )}
+                                      <LinearGradient
+                                        colors={isDisabled ? ['rgba(26, 77, 58, 0.5)', 'rgba(16, 185, 129, 0.3)'] : ['#10B981', '#059669']}
+                                        start={{ x: 0, y: 0 }}
+                                        end={{ x: 1, y: 0 }}
+                                        style={styles.detailsButtonGradient}
+                                      >
+                                        <Ionicons name="create-outline" size={16} color="#FFFFFF" />
+                                        <Text style={styles.detailsButtonText}>
+                                          {userPrediction ? t('matches.editPrediction') : t('common.details')}
+                                        </Text>
+                                      </LinearGradient>
+                                    </TouchableOpacity>
+                                  );
+                                })()}
                               </View>
                             );
                           })}
@@ -1405,8 +2072,72 @@ export default function CompetitionGroupsScreen() {
                             </>
                           )}
                         </View>
-                      );
-                    })}
+                          );
+                        });
+                      }
+                      
+                      // Fallback: usar allMatches agrupados (estructura antigua)
+                      return Object.entries(matchesByGroup).map(([groupLetter, matches]) => {
+                        const isMatchGroupExpanded = expandedMatchGroups.has(groupLetter);
+                        
+                        // Obtener la tabla de posiciones para este grupo del torneo
+                        const firstGroup = groups[0];
+                        const groupStage = firstGroup?.tournamentStructure?.stages?.['group-stage'];
+                        const tournamentGroup = groupStage?.groups?.find(g => g.groupLetter === groupLetter);
+                        
+                        return (
+                          <View key={groupLetter} style={styles.groupMatchesSection}>
+                            <TouchableOpacity
+                              style={styles.groupMatchesHeader}
+                              onPress={() => {
+                                const newSet = new Set(expandedMatchGroups);
+                                if (isMatchGroupExpanded) {
+                                  newSet.delete(groupLetter);
+                                } else {
+                                  newSet.add(groupLetter);
+                                }
+                                setExpandedMatchGroups(newSet);
+                              }}
+                              activeOpacity={0.8}
+                            >
+                              <Ionicons name="list" size={20} color="#1A4D3A" />
+                              <Text style={styles.groupMatchesTitle}>{t('matches.group')} {groupLetter}</Text>
+                              <Ionicons
+                                name={isMatchGroupExpanded ? 'chevron-up' : 'chevron-down'}
+                                size={18}
+                                color="#1A4D3A"
+                              />
+                            </TouchableOpacity>
+                            {isMatchGroupExpanded && (
+                              <>
+                                {/* Tabla de posiciones del grupo */}
+                                {tournamentGroup?.teams && tournamentGroup.teams.length > 0 && (
+                                  <View style={styles.tableWrapper}>
+                                    {/* ... tabla de posiciones ... */}
+                                  </View>
+                                )}
+                                
+                                {/* Lista de partidos */}
+                                <View style={styles.matchesList}>
+                                  {matches
+                                    .filter(m => m.team1Id && m.team2Id) // Filtrar matches sin equipos definidos
+                                    .map((match) => {
+                                      const userPrediction = userPredictions[match.matchId];
+                                      const firstGroupId = groups[0]?.groupId || '';
+                                      
+                                      return (
+                                        <View key={match.matchId} style={styles.matchCard}>
+                                          {/* ... renderizado del match ... */}
+                                        </View>
+                                      );
+                                    })}
+                                </View>
+                              </>
+                            )}
+                          </View>
+                        );
+                      });
+                    })()}
 
                     {/* Partidos sin grupo (eliminatorias, etc.) */}
                     {matchesWithoutGroup.length > 0 && (() => {
@@ -1565,25 +2296,32 @@ export default function CompetitionGroupsScreen() {
                                   </View>
                                 </View>
 
-                                {!match.isPlayed && (
-                                  <TouchableOpacity
-                                    style={styles.detailsButton}
-                                    onPress={() => handleOpenPredictionModal(firstGroupId, match)}
-                                    activeOpacity={0.8}
-                                  >
-                                    <LinearGradient
-                                      colors={['#10B981', '#059669']}
-                                      start={{ x: 0, y: 0 }}
-                                      end={{ x: 1, y: 0 }}
-                                      style={styles.detailsButtonGradient}
+                                {!match.isPlayed && (() => {
+                                  const isDisabled = isDetailsButtonDisabled(match);
+                                  return (
+                                    <TouchableOpacity
+                                      style={[
+                                        styles.detailsButton,
+                                        isDisabled && styles.detailsButtonDisabled
+                                      ]}
+                                      onPress={() => handleOpenPredictionModal(firstGroupId, match)}
+                                      activeOpacity={isDisabled ? 1 : 0.8}
+                                      disabled={false} // Siempre permitir presionar para mostrar el modal
                                     >
-                                      <Ionicons name="create-outline" size={16} color="#FFFFFF" />
-                                      <Text style={styles.detailsButtonText}>
-                                        {userPrediction ? t('matches.editPrediction') : t('common.details')}
-                                      </Text>
-                                    </LinearGradient>
-                                  </TouchableOpacity>
-                                )}
+                                      <LinearGradient
+                                        colors={isDisabled ? ['rgba(26, 77, 58, 0.5)', 'rgba(16, 185, 129, 0.3)'] : ['#10B981', '#059669']}
+                                        start={{ x: 0, y: 0 }}
+                                        end={{ x: 1, y: 0 }}
+                                        style={styles.detailsButtonGradient}
+                                      >
+                                        <Ionicons name="create-outline" size={16} color="#FFFFFF" />
+                                        <Text style={styles.detailsButtonText}>
+                                          {userPrediction ? t('matches.editPrediction') : t('common.details')}
+                                        </Text>
+                                      </LinearGradient>
+                                    </TouchableOpacity>
+                                  );
+                                })()}
                               </View>
                             );
                           })}
@@ -1717,6 +2455,29 @@ export default function CompetitionGroupsScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* Overlay de check de éxito */}
+      {showSuccessCheck && (
+        <Animated.View 
+          style={[
+            styles.successCheckOverlay,
+            {
+              opacity: checkOpacity,
+            }
+          ]}
+        >
+          <Animated.View 
+            style={[
+              styles.successCheckContainer,
+              {
+                transform: [{ scale: checkScale }],
+              }
+            ]}
+          >
+            <Ionicons name="checkmark-circle" size={120} color="#10B981" />
+          </Animated.View>
+        </Animated.View>
+      )}
     </View>
   );
 }
@@ -2318,6 +3079,9 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     overflow: 'hidden',
   },
+  detailsButtonDisabled: {
+    opacity: 0.7,
+  },
   detailsButtonGradient: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -2676,6 +3440,171 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 14,
     fontWeight: '600',
+  },
+  // Scores table styles
+  scoresTableSection: {
+    marginTop: 24,
+    padding: 16,
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+    borderRadius: 12,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  scoresTableHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 16,
+  },
+  scoresTableTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#1A4D3A',
+  },
+  scoresTableSubtitle: {
+    fontSize: 12,
+    color: '#6B7280',
+    marginBottom: 12,
+    textAlign: 'center',
+    fontStyle: 'italic',
+  },
+  scoresTable: {
+    borderRadius: 8,
+    overflow: 'hidden',
+  },
+  scoresTableHeaderRow: {
+    flexDirection: 'row',
+    backgroundColor: 'rgba(26, 77, 58, 0.1)',
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+    borderBottomWidth: 2,
+    borderBottomColor: '#1A4D3A',
+  },
+  scoresTableHeaderCellPosition: {
+    width: 40,
+    alignItems: 'center',
+  },
+  scoresTableHeaderCellName: {
+    flex: 1,
+    paddingLeft: 12,
+  },
+  scoresTableHeaderCellScore: {
+    width: 70,
+    alignItems: 'flex-end',
+  },
+  scoresTableHeaderText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#1A4D3A',
+    textTransform: 'uppercase',
+  },
+  scoresTableRow: {
+    flexDirection: 'row',
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(26, 77, 58, 0.1)',
+    backgroundColor: '#FFFFFF',
+  },
+  scoresTableRowCurrentUser: {
+    backgroundColor: 'rgba(16, 185, 129, 0.1)',
+    borderLeftWidth: 3,
+    borderLeftColor: '#10B981',
+  },
+  scoresTableRowFirst: {
+    backgroundColor: 'rgba(255, 215, 0, 0.1)',
+  },
+  scoresTableCellPosition: {
+    width: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  scoresTablePositionText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#6B7280',
+  },
+  scoresTableCellName: {
+    flex: 1,
+    paddingLeft: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  scoresTableNameText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#1A4D3A',
+    flex: 1,
+  },
+  scoresTableNameTextCurrentUser: {
+    fontWeight: '700',
+    color: '#10B981',
+  },
+  scoresTableCreatorBadge: {
+    backgroundColor: 'rgba(26, 77, 58, 0.1)',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  scoresTableCreatorBadgeText: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: '#1A4D3A',
+    textTransform: 'uppercase',
+  },
+  scoresTableCellScore: {
+    width: 70,
+    alignItems: 'flex-end',
+    justifyContent: 'center',
+    gap: 2,
+  },
+  scoresTableScoreText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#10B981',
+  },
+  scoresTableScoreTextCurrentUser: {
+    color: '#059669',
+    fontSize: 18,
+  },
+  scoresTableScoreLabel: {
+    fontSize: 10,
+    fontWeight: '500',
+    color: '#6B7280',
+  },
+  scoresTableEmpty: {
+    padding: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 12,
+  },
+  scoresTableEmptyText: {
+    fontSize: 14,
+    color: '#9CA3AF',
+    textAlign: 'center',
+    fontStyle: 'italic',
+  },
+  successCheckOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 9999,
+    pointerEvents: 'none',
+  },
+  successCheckContainer: {
+    justifyContent: 'center',
+    alignItems: 'center',
   },
 });
 

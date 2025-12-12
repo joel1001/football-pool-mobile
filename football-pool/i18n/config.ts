@@ -62,12 +62,11 @@ export const initI18n = async () => {
         },
       })
       .then(() => {
-        console.log('✅ i18n initialized with language:', savedLanguage);
         resolve();
       })
       .catch((error) => {
-        console.error('❌ Error initializing i18n:', error);
-        resolve(); // Resolve anyway to not block the app
+        console.warn('❌ Error initializing i18n:', error);
+        resolve();
       });
   });
 };

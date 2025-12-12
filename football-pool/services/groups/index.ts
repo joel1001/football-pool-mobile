@@ -19,6 +19,8 @@ export {
   getGroupPredictions,
   getMatchPrediction,
   calculateScores,
+  getGroupIdsForCompetition,
+  updateMatchesDetailMultiple,
 } from './group-service';
 
 

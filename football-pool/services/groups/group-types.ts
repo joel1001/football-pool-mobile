@@ -13,8 +13,17 @@ export interface Team {
   position?: number; // Posición en la tabla
 }
 
+export interface ScoreboardUser {
+  userId: string;
+  userName: string;
+  score: number;
+  position: number;
+  lastUpdated: string;
+}
+
 export interface Scoreboard {
   teams: Team[];
+  users?: ScoreboardUser[]; // Usuarios con sus puntajes en el scoreboard
 }
 
 export interface GroupUser {
@@ -213,6 +222,16 @@ export interface Match {
   matchday?: number | string | { $date: string } | null; // Número de jornada (1, 2, 3, etc.), fecha en formato ISO 8601, o objeto MongoDB Date {"$date": "..."}
   nextMatchId?: string | null;
   nextStageId?: string | null;
+  // Campos para knockout stages (tiempo extra y penales)
+  extraTime?: boolean | null;
+  penalties?: boolean | null;
+  penaltiesTeam1Score?: number | null;
+  penaltiesTeam2Score?: number | null;
+  // Predicciones del usuario para knockout
+  userExtraTime?: boolean | null;
+  userPenalties?: boolean | null;
+  userPenaltiesTeam1Score?: number | null;
+  userPenaltiesTeam2Score?: number | null;
 }
 
 export interface GetMatchesResponse {
@@ -281,5 +300,77 @@ export interface CalculateScoresResponse {
   groupId: string;
   totalMatchesProcessed: number;
   userScores: Record<string, number>;
+}
+
+// ================================================================================
+// INTERNAL ENDPOINT TYPES - Update Matches Detail Multiple
+// ================================================================================
+// Tipos para el endpoint interno que actualiza score y matchesInfo en múltiples grupos
+
+/**
+ * Información detallada de un partido para actualizar en grupos
+ * Este formato coincide con la estructura que el backend espera en matchesDetail
+ */
+export interface MatchDetailInfo {
+  matchId: string;
+  team1Id: string;
+  team1Name: string;
+  team1Flag: string;
+  team2Id: string;
+  team2Name: string;
+  team2Flag: string;
+  userTeam1Score: number;
+  userTeam2Score: number;
+  team1Score?: number; // Score real del equipo 1 (si el partido ya se jugó)
+  team2Score?: number; // Score real del equipo 2 (si el partido ya se jugó)
+  points?: number; // Puntos obtenidos por esta predicción
+  matchDate: string; // Fecha del partido (ISO 8601)
+  isPlayed: boolean;
+  stageId: string; // ID de la etapa (ej: "group-stage", "round-of-16")
+  groupLetter?: string; // Letra del grupo (solo para fase de grupos)
+  // Campos opcionales para knockout stages
+  userExtraTime?: boolean;
+  userPenalties?: boolean;
+  userPenaltiesTeam1Score?: number;
+  userPenaltiesTeam2Score?: number;
+  extraTime?: boolean;
+  penalties?: boolean;
+  penaltiesTeam1Score?: number;
+  penaltiesTeam2Score?: number;
+}
+
+/**
+ * Request para actualizar matches detail en múltiples grupos
+ * Este endpoint es INTERNO y debe ser llamado desde auth_service después de guardar una predicción
+ */
+export interface UpdateMatchesDetailMultipleRequest {
+  groupIds: string[]; // Lista de IDs de grupos donde se debe actualizar el usuario
+  userId: string; // ID del usuario que hizo la predicción
+  competitionId: string; // ID de la competencia
+  matchesDetail: MatchDetailInfo[]; // Array con información de todas las predicciones del usuario para esta competencia
+  userScore: number; // Score acumulado del usuario para esta competencia
+}
+
+/**
+ * Resultado de la actualización de un grupo individual
+ */
+export interface GroupUpdateResult {
+  groupId: string;
+  status: 'success' | 'error';
+  message: string;
+}
+
+/**
+ * Response de actualizar matches detail en múltiples grupos
+ */
+export interface UpdateMatchesDetailMultipleResponse {
+  message: string;
+  successCount: number;
+  errorCount: number;
+  userId: string;
+  competitionId: string;
+  matchesDetailCount: number;
+  userScore: number;
+  results: GroupUpdateResult[];
 }
 
