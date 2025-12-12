@@ -32,6 +32,7 @@ export default function RootLayout() {
               <Stack.Screen name="competition-details" options={{ headerShown: false }} />
               <Stack.Screen name="competition-groups" options={{ headerShown: false }} />
               <Stack.Screen name="group-details" options={{ headerShown: false }} />
+              <Stack.Screen name="user-matches" options={{ headerShown: false }} />
               <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
             </Stack>
             <StatusBar style="auto" />

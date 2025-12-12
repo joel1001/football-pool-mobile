@@ -4,8 +4,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { useState, useEffect } from 'react';
 import { getUserGroups, getGroupMatches, patchGroup, inviteUser, deleteGroup } from '@/services/groups';
 import { Group, Match } from '@/services/groups/group-types';
-import { savePrediction } from '@/services/predictions';
-import { SavePredictionRequest, UserPrediction } from '@/services/predictions/prediction-types';
+import { savePrediction, getPredictions, getPrediction } from '@/services/predictions';
+import { SavePredictionRequest, UserPrediction, MatchInfo } from '@/services/predictions/prediction-types';
 import { LinearGradient } from 'expo-linear-gradient';
 import { AnimatedBackgroundPenalty, ProfileBadge } from '@/atomic';
 import { useTranslation } from 'react-i18next';
@@ -164,6 +164,23 @@ export default function CompetitionGroupsScreen() {
           isCreatorWithLocalData: g.creatorUserId === localData.userId,
           isCreatorWithCurrentUserId: g.creatorUserId === currentUserIdForCheck,
         })),
+      });
+      
+      // Log usuarios del backend para cada grupo
+      filteredGroups.forEach((group, index) => {
+        console.log(`👥 [GROUP ${index + 1}] Users from backend:`, {
+          groupId: group.groupId,
+          groupName: group.name,
+          totalUsers: group.users?.length || 0,
+          users: group.users?.map((u: any) => ({
+            userId: u.userId,
+            _id: u._id,
+            id: u.id,
+            nombre: u.nombre || u.name || u.userName,
+            score: u.score ?? 0,
+            hasMatchesInfo: !!(u.matchesInfo && Array.isArray(u.matchesInfo) && u.matchesInfo.length > 0)
+          })) || []
+        });
       });
       
       setGroups(filteredGroups);
@@ -380,54 +397,76 @@ export default function CompetitionGroupsScreen() {
   };
 
   const loadUserPredictions = async (groupId: string, matches: Match[]) => {
-    if (!currentUserId) {
-      console.log('⚠️ No userId available, skipping predictions load');
+    if (!currentUserId || !competitionId) {
+      console.log('⚠️ No userId or competitionId available, skipping predictions load');
       return;
     }
 
     try {
-      // Obtener todas las predicciones del usuario para este grupo desde auth_service
-      const response = await getUserPredictions(currentUserId, groupId);
+      // Obtener todas las predicciones del usuario desde auth_service
+      // Las predicciones vienen organizadas por competitionId: predictions[competitionId].matchInfo[]
+      const response = await getPredictions(currentUserId);
       
       // Validar que la respuesta tenga la estructura esperada
       if (!response || typeof response !== 'object') {
-        console.warn('⚠️ Invalid response format from getUserPredictions:', response);
+        console.warn('⚠️ Invalid response format from getPredictions:', response);
         return;
       }
       
-      // Verificar si hay predicciones
-      if (!response.predictions || !Array.isArray(response.predictions)) {
-        console.log('ℹ️ User has no predictions yet for this group or invalid response format');
+      // Verificar si hay predicciones para esta competencia
+      if (!response.predictions || typeof response.predictions !== 'object') {
+        console.log('ℹ️ User has no predictions yet');
         return;
       }
       
-      if (response.predictions.length === 0 || response.count === 0) {
-        console.log('ℹ️ User has no predictions yet for this group');
+      // Obtener las predicciones de esta competencia específica
+      // El competitionId es el nombre del torneo (ej: "club-world-cup")
+      const competitionPrediction = response.predictions[competitionId as string];
+      
+      if (!competitionPrediction || !competitionPrediction.matchInfo || !Array.isArray(competitionPrediction.matchInfo)) {
+        console.log('ℹ️ User has no predictions yet for this competition:', competitionId);
+        return;
+      }
+      
+      if (competitionPrediction.matchInfo.length === 0) {
+        console.log('ℹ️ User has no predictions yet for this competition');
         return;
       }
       
       // Crear un mapa de predicciones por matchId para acceso rápido
+      // IMPORTANTE: Las predicciones vienen con team1Score y team2Score (no userTeam1Score/userTeam2Score)
       const predictionsMap: Record<string, UserPrediction> = {};
       
-      response.predictions.forEach((prediction, index) => {
+      competitionPrediction.matchInfo.forEach((matchInfo: MatchInfo, index: number) => {
         // Validar que cada predicción tenga matchId antes de agregarla
-        if (!prediction || typeof prediction !== 'object') {
-          console.warn(`⚠️ Invalid prediction at index ${index}:`, prediction);
+        if (!matchInfo || typeof matchInfo !== 'object') {
+          console.warn(`⚠️ Invalid matchInfo at index ${index}:`, matchInfo);
           return;
         }
-        if (!prediction.matchId || typeof prediction.matchId !== 'string') {
-          console.warn(`⚠️ Invalid prediction format (missing or invalid matchId) at index ${index}:`, prediction);
+        if (!matchInfo.matchId || typeof matchInfo.matchId !== 'string') {
+          console.warn(`⚠️ Invalid matchInfo format (missing or invalid matchId) at index ${index}:`, matchInfo);
           return;
         }
-        predictionsMap[prediction.matchId] = prediction;
+        
+        // Mapear MatchInfo a UserPrediction
+        // Las predicciones vienen con team1Score y team2Score
+        predictionsMap[matchInfo.matchId] = {
+          matchId: matchInfo.matchId,
+          team1Score: matchInfo.team1Score, // ← Predicción del usuario
+          team2Score: matchInfo.team2Score, // ← Predicción del usuario
+          predictedDate: matchInfo.predictedDate || new Date().toISOString(),
+          points: 0, // points se calcula a nivel de competencia, no por match individual
+        };
       });
       
       setUserPredictions(prev => ({ ...prev, ...predictionsMap }));
-      console.log('✅ User predictions loaded:', {
+      console.log('✅ User predictions loaded from competition:', {
         groupId,
+        competitionId,
         userId: response.userId,
-        count: response.count,
+        matchesCount: competitionPrediction.matchInfo.length,
         predictionsLoaded: Object.keys(predictionsMap).length,
+        points: competitionPrediction.points,
       });
     } catch (err: any) {
       const status = err.response?.status;
@@ -684,8 +723,10 @@ export default function CompetitionGroupsScreen() {
       // Si no hay predicción guardada, intentar cargarla desde el backend
       if (currentUserId) {
         try {
-          const predictionResponse = await getUserPrediction(currentUserId, groupId, match.matchId);
+          // Usar getPrediction para obtener una predicción específica por matchId
+          const predictionResponse = await getPrediction(currentUserId, match.matchId);
           if (predictionResponse.prediction) {
+            // Las predicciones vienen con team1Score y team2Score
             setTeam1Score(predictionResponse.prediction.team1Score.toString());
             setTeam2Score(predictionResponse.prediction.team2Score.toString());
             // Actualizar el estado local también
@@ -918,14 +959,14 @@ export default function CompetitionGroupsScreen() {
         groupsAppliedCount: predictionResponse.groupsApplied?.length || 0,
       });
 
-      // Actualizar predicción local (usar el primer grupo como referencia para compatibilidad)
-      const firstGroupId = predictionResponse.groupsApplied?.[0]?.groupId || selectedMatch.groupId;
+      // Actualizar predicción local
+      // IMPORTANTE: UserPrediction NO tiene groupId, solo matchId
       const newPrediction: UserPrediction = {
-        groupId: firstGroupId,
         matchId: selectedMatch.match.matchId,
         team1Score: score1,
         team2Score: score2,
         predictedDate: new Date().toISOString(),
+        points: predictionResponse.points || 0, // Puntos de la respuesta del backend
       };
       
       setUserPredictions(prev => ({
@@ -933,9 +974,44 @@ export default function CompetitionGroupsScreen() {
         [selectedMatch.match.matchId]: newPrediction,
       }));
 
-      // NO recargar grupos para evitar parpadeo y pérdida de foco/scroll
-      // Los grupos se actualizarán automáticamente cuando el usuario navegue o recargue manualmente
-      // El backend ya actualizó los scores, pero no necesitamos recargar inmediatamente
+      // Actualizar SOLO los scores de los usuarios en la tabla de puntuación
+      // Sin recargar todo el estado para evitar refresh/parpadeo
+      if (predictionResponse.groupsApplied && predictionResponse.groupsApplied.length > 0) {
+        setGroups(prevGroups => {
+          return prevGroups.map(group => {
+            const groupUpdate = predictionResponse.groupsApplied?.find(
+              (g: any) => (g.groupId === group.groupId || g.groupId === (group as any)._id)
+            );
+            
+            if (groupUpdate && groupUpdate.totalScore !== undefined && group.users) {
+              // Actualizar el score del usuario actual en este grupo y reordenar por score
+              const updatedUsers = group.users.map((user: any) => {
+                const userId = user.userId || user._id || user.id;
+                if (userId === currentUserId) {
+                  return {
+                    ...user,
+                    score: groupUpdate.totalScore,
+                  };
+                }
+                return user;
+              });
+              
+              // Reordenar usuarios por score descendente (mayor a menor)
+              const sortedUsers = [...updatedUsers].sort((a: any, b: any) => {
+                const scoreA = a.score ?? 0;
+                const scoreB = b.score ?? 0;
+                return scoreB - scoreA;
+              });
+              
+              return {
+                ...group,
+                users: sortedUsers,
+              };
+            }
+            return group;
+          });
+        });
+      }
       
       // Mostrar check de éxito con animación
       setShowSuccessCheck(true);
@@ -1084,7 +1160,11 @@ export default function CompetitionGroupsScreen() {
         <View style={styles.placeholder} />
       </View>
 
-      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+      <ScrollView 
+        style={styles.scrollView} 
+        contentContainerStyle={styles.scrollViewContent}
+        showsVerticalScrollIndicator={false}
+      >
         <View style={styles.content}>
           {groups.length === 0 ? (
             <View style={styles.emptyContainer}>
@@ -1550,19 +1630,7 @@ export default function CompetitionGroupsScreen() {
                                 <Text style={styles.scoresTableTitle}>{t('groups.scoresTable')}</Text>
                               </View>
                               
-                              {/* Mostrar última actualización si está disponible */}
-                              {group.scoreboard?.users && group.scoreboard.users.length > 0 && group.scoreboard.users[0]?.lastUpdated && (
-                                <Text style={styles.scoresTableSubtitle}>
-                                  {t('groups.lastUpdated')}: {new Date(group.scoreboard.users[0].lastUpdated).toLocaleString('es-ES', {
-                                    day: 'numeric',
-                                    month: 'short',
-                                    hour: '2-digit',
-                                    minute: '2-digit',
-                                  })}
-                                </Text>
-                              )}
-                              
-                              {group.scoreboard?.users && group.scoreboard.users.length > 0 ? (
+                              {group.users && group.users.length > 0 ? (
                                 <View style={styles.scoresTable}>
                                   {/* Header de la tabla */}
                                   <View style={styles.scoresTableHeaderRow}>
@@ -1575,20 +1643,58 @@ export default function CompetitionGroupsScreen() {
                                     <View style={styles.scoresTableHeaderCellScore}>
                                       <Text style={styles.scoresTableHeaderText}>{t('groups.score')}</Text>
                                     </View>
+                                    <View style={styles.scoresTableHeaderCellDetails}>
+                                      <Text style={styles.scoresTableHeaderTextDetail}>Ver</Text>
+                                    </View>
                                   </View>
                                   
-                                  {/* Filas de usuarios del scoreboard (ordenados por posición) */}
+                                  {/* Filas de usuarios (ordenados por score descendente) */}
                                   {(() => {
-                                    // Ordenar por posición por si acaso (aunque ya vienen ordenados del backend)
-                                    const sortedUsers = [...group.scoreboard.users].sort((a, b) => a.position - b.position);
+                                    // Ordenar usuarios por score (de mayor a menor) y asignar posiciones
+                                    // Mostrar TODOS los usuarios, incluso si score es 0
+                                    const allUsers = [...(group.users || [])];
+                                    console.log('🔍 DEBUG: Total users in group:', allUsers.length);
+                                    console.log('🔍 DEBUG: Users data:', allUsers.map((u: any) => ({ 
+                                      userId: u.userId, 
+                                      _id: u._id,
+                                      id: u.id,
+                                      nombre: u.nombre, 
+                                      score: u.score,
+                                      hasMatchesInfo: !!(u.matchesInfo && Array.isArray(u.matchesInfo) && u.matchesInfo.length > 0)
+                                    })));
                                     
-                                    return sortedUsers.map((user) => {
-                                      const isCurrentUser = user.userId === currentUserId;
-                                      const isCreator = user.userId === group.creatorUserId;
+                                    const sortedUsers = allUsers
+                                      .filter((u: any) => {
+                                        const hasId = !!(u.userId || u._id || u.id);
+                                        if (!hasId) {
+                                          console.log('🔍 DEBUG: Filtered out user (no userId, _id, or id):', u);
+                                        }
+                                        return hasId;
+                                      })
+                                      .sort((a: any, b: any) => {
+                                        const scoreA = a.score ?? 0;
+                                        const scoreB = b.score ?? 0;
+                                        return scoreB - scoreA; // Descendente
+                                      })
+                                      .map((user: any, index: number) => ({
+                                        ...user,
+                                        position: index + 1
+                                      }));
+                                    
+                                    console.log('🔍 DEBUG: Sorted users count:', sortedUsers.length);
+                                    
+                                    return sortedUsers.map((user: any) => {
+                                      const userId = user.userId || user._id || user.id;
+                                      const isCurrentUser = userId === currentUserId;
+                                      const isCreator = userId === group.creatorUserId;
+                                      const userName = user.nombre || user.userName || user.name || 'Usuario';
+                                      const userScore = user.score ?? 0;
+                                      // Verificar si el usuario tiene matchesInfo
+                                      const hasMatchesInfo = user.matchesInfo && Array.isArray(user.matchesInfo) && user.matchesInfo.length > 0;
                                       
                                       return (
                                         <View 
-                                          key={user.userId} 
+                                          key={userId} 
                                           style={[
                                             styles.scoresTableRow,
                                             isCurrentUser && styles.scoresTableRowCurrentUser,
@@ -1607,31 +1713,58 @@ export default function CompetitionGroupsScreen() {
                                             )}
                                           </View>
                                           <View style={styles.scoresTableCellName}>
-                                            <Text 
-                                              style={[
-                                                styles.scoresTableNameText,
-                                                isCurrentUser && styles.scoresTableNameTextCurrentUser
-                                              ]}
-                                              numberOfLines={1}
-                                            >
-                                              {user.userName}
-                                            </Text>
-                                            {isCreator && (
-                                              <View style={styles.scoresTableCreatorBadge}>
-                                                <Text style={styles.scoresTableCreatorBadgeText}>
-                                                  {t('groups.creator')}
-                                                </Text>
-                                              </View>
-                                            )}
+                                            <View style={styles.scoresTableNameContainer}>
+                                              <Text 
+                                                style={[
+                                                  styles.scoresTableNameText,
+                                                  isCurrentUser && styles.scoresTableNameTextCurrentUser
+                                                ]}
+                                                numberOfLines={1}
+                                                ellipsizeMode="tail"
+                                              >
+                                                {userName}
+                                              </Text>
+                                              {isCreator && (
+                                                <View style={styles.scoresTableCreatorBadge}>
+                                                  <Text style={styles.scoresTableCreatorBadgeText}>
+                                                    {t('groups.creator')}
+                                                  </Text>
+                                                </View>
+                                              )}
+                                            </View>
                                           </View>
                                           <View style={styles.scoresTableCellScore}>
-                                            <Text style={[
-                                              styles.scoresTableScoreText,
-                                              isCurrentUser && styles.scoresTableScoreTextCurrentUser
-                                            ]}>
-                                              {user.score}
-                                            </Text>
-                                            <Text style={styles.scoresTableScoreLabel}>pts</Text>
+                                            <View style={styles.scoresTableScoreContainer}>
+                                              <Text style={[
+                                                styles.scoresTableScoreText,
+                                                isCurrentUser && styles.scoresTableScoreTextCurrentUser
+                                              ]}>
+                                                {userScore}
+                                              </Text>
+                                              <Text style={styles.scoresTableScoreLabel}>pts</Text>
+                                            </View>
+                                          </View>
+                                          <View style={styles.scoresTableCellDetails}>
+                                            {hasMatchesInfo ? (
+                                              <TouchableOpacity
+                                                style={styles.userDetailsButton}
+                                                onPress={() => {
+                                                  router.push({
+                                                    pathname: '/user-matches',
+                                                    params: {
+                                                      userId: userId,
+                                                      userName: userName,
+                                                      groupId: group.groupId || (group as any)._id,
+                                                      matchesInfo: JSON.stringify(user.matchesInfo || []),
+                                                      competitionId: group.competitionId,
+                                                    }
+                                                  });
+                                                }}
+                                                activeOpacity={0.7}
+                                              >
+                                                <Ionicons name="chevron-forward" size={20} color="#1A4D3A" />
+                                              </TouchableOpacity>
+                                            ) : null}
                                           </View>
                                         </View>
                                       );
@@ -1737,9 +1870,10 @@ export default function CompetitionGroupsScreen() {
                       
                       if (groupStage?.groups) {
                         // Usar matches directamente de groupsKindTournament
-                        return groupStage.groups.map((tournamentGroup) => {
+                        return groupStage.groups.map((tournamentGroup, groupIndex, groupsArray) => {
                           const groupLetter = tournamentGroup.groupLetter;
                           const isMatchGroupExpanded = expandedMatchGroups.has(groupLetter);
+                          const isLastGroup = groupIndex === groupsArray.length - 1;
                           // IMPORTANTE: Los matches aquí ya tienen los resultados reales (team1Score, team2Score)
                           // Filtrar solo matches con equipos definidos
                           const matches = (tournamentGroup.matches || []).filter(m => m.team1Id && m.team2Id);
@@ -1756,7 +1890,10 @@ export default function CompetitionGroupsScreen() {
                           }
                       
                           return (
-                        <View key={groupLetter} style={styles.groupMatchesSection}>
+                        <View key={groupLetter} style={[
+                          styles.groupMatchesSection,
+                          isLastGroup && { marginBottom: 32 } // Padding extra para el último grupo
+                        ]}>
                           <TouchableOpacity
                             style={styles.groupMatchesHeader}
                             onPress={() => {
@@ -1899,175 +2036,191 @@ export default function CompetitionGroupsScreen() {
                               
                               {/* Lista de partidos - Filtrar solo matches con equipos definidos */}
                               <View style={styles.matchesList}>
-                          {matches
-                            .filter(m => m.team1Id && m.team2Id) // Solo matches con equipos definidos
-                            .map((match) => {
-                            const userPrediction = userPredictions[match.matchId];
-                            // Usar el primer grupo para las predicciones (son las mismas para todos)
-                            const firstGroupId = groups[0]?.groupId || '';
-                            
-                            // Debug: Log para verificar si matchDay existe
-                            if (match.matchDay || match.matchDate) {
-                              console.log('📅 Match date found:', {
-                                matchId: match.matchId,
-                                matchDay: match.matchDay,
-                                matchDate: match.matchDate,
-                              });
-                            }
-                            
-                            return (
-                              <View key={match.matchId} style={styles.matchCard}>
-                                <View style={styles.matchHeader}>
-                                  <Text style={styles.matchNumber}>{t('matches.match')} {match.matchNumber}</Text>
-                                  <View style={styles.matchHeaderCenter}>
-                                    {(() => {
-                                      // matchday puede ser number, date (string ISO), o objeto MongoDB Date {"$date": "..."}
-                                      // Intentar obtener la fecha del partido (prioridad: matchDay > matchDate > matchday si es fecha)
-                                      let dateValue: string | null = null;
-                                      
-                                      // Verificar si matchday es un objeto MongoDB Date
-                                      if (match.matchday && typeof match.matchday === 'object' && match.matchday !== null) {
-                                        const mongoDate = match.matchday as any;
-                                        if (mongoDate.$date) {
-                                          dateValue = mongoDate.$date;
-                                        }
-                                      }
-                                      // Verificar si matchday es una fecha (string ISO)
-                                      else if (match.matchday && typeof match.matchday === 'string') {
-                                        dateValue = match.matchday;
-                                      }
-                                      // Si matchday es un número, no es una fecha
-                                      else {
-                                        // Usar matchDay o matchDate como fallback
-                                        dateValue = match.matchDay || match.matchDate || null;
-                                      }
-                                      
-                                      if (dateValue) {
-                                        try {
-                                          const matchDate = new Date(dateValue);
+                                {matches
+                                  .filter((m) => m.team1Id && m.team2Id) // Solo matches con equipos definidos
+                                  .map((match, matchIndex) => {
+                                    const userPrediction = userPredictions[match.matchId];
+                                    // Usar el primer grupo para las predicciones (son las mismas para todos)
+                                    const firstGroupId = groups[0]?.groupId || '';
+                                    
+                                    // Debug específico para el último grupo - verificar TODOS los matches
+                                    if (isLastGroup) {
+                                      console.log('🔍 [DEBUG_LAST_GROUP] Match del último grupo:', {
+                                        groupLetter,
+                                        matchId: match.matchId,
+                                        matchIndex,
+                                        isPlayed: match.isPlayed,
+                                        isPlayedType: typeof match.isPlayed,
+                                        isPlayedValue: match.isPlayed,
+                                        shouldShowButton: !match.isPlayed,
+                                        hasButtonCondition: !match.isPlayed,
+                                        team1Score: match.team1Score,
+                                        team2Score: match.team2Score,
+                                      });
+                                    }
+                                    
+                                    return (
+                                      <View key={match.matchId} style={styles.matchCard}>
+                                        <View style={styles.matchHeader}>
+                                          <Text style={styles.matchNumber}>{t('matches.match')} {match.matchNumber}</Text>
+                                          <View style={styles.matchHeaderCenter}>
+                                            {(() => {
+                                              // matchday puede ser number, date (string ISO), o objeto MongoDB Date {"$date": "..."}
+                                              // Intentar obtener la fecha del partido (prioridad: matchDay > matchDate > matchday si es fecha)
+                                              let dateValue: string | null = null;
+                                              
+                                              // Verificar si matchday es un objeto MongoDB Date
+                                              if (match.matchday && typeof match.matchday === 'object' && match.matchday !== null) {
+                                                const mongoDate = match.matchday as any;
+                                                if (mongoDate.$date) {
+                                                  dateValue = mongoDate.$date;
+                                                }
+                                              }
+                                              // Verificar si matchday es una fecha (string ISO)
+                                              else if (match.matchday && typeof match.matchday === 'string') {
+                                                dateValue = match.matchday;
+                                              }
+                                              // Si matchday es un número, no es una fecha
+                                              else {
+                                                // Usar matchDay o matchDate como fallback
+                                                dateValue = match.matchDay || match.matchDate || null;
+                                              }
+                                              
+                                              if (dateValue) {
+                                                try {
+                                                  const matchDate = new Date(dateValue);
+                                                  
+                                                  // Validar que la fecha sea válida
+                                                  if (!isNaN(matchDate.getTime())) {
+                                                    const formattedDate = matchDate.toLocaleDateString('es-ES', {
+                                                      day: 'numeric',
+                                                      month: 'short',
+                                                      hour: '2-digit',
+                                                      minute: '2-digit',
+                                                    });
+                                                    
+                                                    return (
+                                                      <Text style={styles.matchDateText}>
+                                                        {formattedDate}
+                                                      </Text>
+                                                    );
+                                                  }
+                                                } catch (e) {
+                                                  console.error('Error formatting match date:', e, dateValue);
+                                                }
+                                              }
+                                              
+                                              // Si no hay fecha disponible, mostrar placeholder
+                                              return (
+                                                <Text style={styles.matchDateTextPlaceholder}>
+                                                  {t('matches.dateNotAvailable')}
+                                                </Text>
+                                              );
+                                            })()}
+                                          </View>
+                                          {/* Mostrar jornada solo si matchday es un número */}
+                                          {match.matchday && typeof match.matchday === 'number' && (
+                                            <Text style={styles.matchDay}>{t('matches.matchday')} {match.matchday}</Text>
+                                          )}
+                                        </View>
+                                        
+                                        <View style={styles.matchTeams}>
+                                          <View style={styles.matchTeam}>
+                                            <View style={styles.matchTeamContent}>
+                                              <TeamImage
+                                                teamId={match.team1Id}
+                                                teamsMap={teamsMap}
+                                                category={category as 'fifaNationalTeamCups' | 'fifaOfficialClubCups' | 'nationalClubLeagues' | undefined}
+                                                fallbackFlag={match.team1Flag}
+                                                style="match"
+                                              />
+                                              {/* Mostrar marcador real junto al logo del equipo 1 */}
+                                              {(match.team1Score !== null && match.team1Score !== undefined) && (
+                                                <Text style={styles.realScoreNextToLogo}>
+                                                  {match.team1Score}
+                                                </Text>
+                                              )}
+                                            </View>
+                                            <Text style={styles.matchTeamName} numberOfLines={1}>
+                                              {match.team1Name}
+                                            </Text>
+                                          </View>
                                           
-                                          // Validar que la fecha sea válida
-                                          if (!isNaN(matchDate.getTime())) {
-                                            const formattedDate = matchDate.toLocaleDateString('es-ES', {
-                                              day: 'numeric',
-                                              month: 'short',
-                                              hour: '2-digit',
-                                              minute: '2-digit',
-                                            });
-                                            
-                                            return (
-                                              <Text style={styles.matchDateText}>
-                                                {formattedDate}
+                                          <View style={styles.matchScore}>
+                                            {/* Mostrar "vs" o separador si no hay marcadores reales */}
+                                            {(match.team1Score === null || match.team1Score === undefined || match.team2Score === null || match.team2Score === undefined) ? (
+                                              <Text style={styles.matchScoreText}>{t('matches.vs')}</Text>
+                                            ) : (
+                                              <Text style={styles.matchScoreSeparator}>-</Text>
+                                            )}
+                                            {/* Mostrar predicción del usuario si existe */}
+                                            {userPrediction && (
+                                              <Text style={styles.predictionBadge}>
+                                                {t('matches.yourPrediction')}: {userPrediction.team1Score} - {userPrediction.team2Score}
                                               </Text>
-                                            );
-                                          }
-                                        } catch (e) {
-                                          console.error('Error formatting match date:', e, dateValue);
-                                        }
-                                      }
-                                      
-                                      // Si no hay fecha disponible, mostrar placeholder
-                                      return (
-                                        <Text style={styles.matchDateTextPlaceholder}>
-                                          {t('matches.dateNotAvailable')}
-                                        </Text>
-                                      );
-                                    })()}
-                                  </View>
-                                  {/* Mostrar jornada solo si matchday es un número */}
-                                  {match.matchday && typeof match.matchday === 'number' && (
-                                    <Text style={styles.matchDay}>{t('matches.matchday')} {match.matchday}</Text>
-                                  )}
-                                </View>
-                                
-                                <View style={styles.matchTeams}>
-                                  <View style={styles.matchTeam}>
-                                    <View style={styles.matchTeamContent}>
-                                      <TeamImage
-                                        teamId={match.team1Id}
-                                        teamsMap={teamsMap}
-                                        category={category as 'fifaNationalTeamCups' | 'fifaOfficialClubCups' | 'nationalClubLeagues' | undefined}
-                                        fallbackFlag={match.team1Flag}
-                                        style="match"
-                                      />
-                                      {/* Mostrar marcador real junto al logo del equipo 1 */}
-                                      {(match.team1Score !== null && match.team1Score !== undefined) && (
-                                        <Text style={styles.realScoreNextToLogo}>
-                                          {match.team1Score}
-                                        </Text>
-                                      )}
-                                    </View>
-                                    <Text style={styles.matchTeamName} numberOfLines={1}>
-                                      {match.team1Name}
-                                    </Text>
-                                  </View>
-                                  
-                                  <View style={styles.matchScore}>
-                                    {/* Mostrar "vs" o separador si no hay marcadores reales */}
-                                    {(match.team1Score === null || match.team1Score === undefined || match.team2Score === null || match.team2Score === undefined) ? (
-                                      <Text style={styles.matchScoreText}>{t('matches.vs')}</Text>
-                                    ) : (
-                                      <Text style={styles.matchScoreSeparator}>-</Text>
-                                    )}
-                                    {/* Mostrar predicción del usuario si existe */}
-                                    {userPrediction && (
-                                      <Text style={styles.predictionBadge}>
-                                        {t('matches.yourPrediction')}: {userPrediction.team1Score} - {userPrediction.team2Score}
-                                      </Text>
-                                    )}
-                                  </View>
-                                  
-                                  <View style={styles.matchTeam}>
-                                    <View style={styles.matchTeamContent}>
-                                      <TeamImage
-                                        teamId={match.team2Id}
-                                        teamsMap={teamsMap}
-                                        category={category as 'fifaNationalTeamCups' | 'fifaOfficialClubCups' | 'nationalClubLeagues' | undefined}
-                                        fallbackFlag={match.team2Flag}
-                                        style="match"
-                                      />
-                                      {/* Mostrar marcador real junto al logo del equipo 2 */}
-                                      {(match.team2Score !== null && match.team2Score !== undefined) && (
-                                        <Text style={styles.realScoreNextToLogo}>
-                                          {match.team2Score}
-                                        </Text>
-                                      )}
-                                    </View>
-                                    <Text style={styles.matchTeamName} numberOfLines={1}>
-                                      {match.team2Name}
-                                    </Text>
-                                  </View>
-                                </View>
+                                            )}
+                                          </View>
+                                          
+                                          <View style={styles.matchTeam}>
+                                            <View style={styles.matchTeamContent}>
+                                              <TeamImage
+                                                teamId={match.team2Id}
+                                                teamsMap={teamsMap}
+                                                category={category as 'fifaNationalTeamCups' | 'fifaOfficialClubCups' | 'nationalClubLeagues' | undefined}
+                                                fallbackFlag={match.team2Flag}
+                                                style="match"
+                                              />
+                                              {/* Mostrar marcador real junto al logo del equipo 2 */}
+                                              {(match.team2Score !== null && match.team2Score !== undefined) && (
+                                                <Text style={styles.realScoreNextToLogo}>
+                                                  {match.team2Score}
+                                                </Text>
+                                              )}
+                                            </View>
+                                            <Text style={styles.matchTeamName} numberOfLines={1}>
+                                              {match.team2Name}
+                                            </Text>
+                                          </View>
+                                        </View>
 
-                                {!match.isPlayed && (() => {
-                                  const isDisabled = isDetailsButtonDisabled(match);
-                                  return (
-                                    <TouchableOpacity
-                                      style={[
-                                        styles.detailsButton,
-                                        isDisabled && styles.detailsButtonDisabled
-                                      ]}
-                                      onPress={() => handleOpenPredictionModal(firstGroupId, match)}
-                                      activeOpacity={isDisabled ? 1 : 0.8}
-                                      disabled={false} // Siempre permitir presionar para mostrar el modal
-                                    >
-                                      <LinearGradient
-                                        colors={isDisabled ? ['rgba(26, 77, 58, 0.5)', 'rgba(16, 185, 129, 0.3)'] : ['#10B981', '#059669']}
-                                        start={{ x: 0, y: 0 }}
-                                        end={{ x: 1, y: 0 }}
-                                        style={styles.detailsButtonGradient}
-                                      >
-                                        <Ionicons name="create-outline" size={16} color="#FFFFFF" />
-                                        <Text style={styles.detailsButtonText}>
-                                          {userPrediction ? t('matches.editPrediction') : t('common.details')}
-                                        </Text>
-                                      </LinearGradient>
-                                    </TouchableOpacity>
-                                  );
-                                })()}
-                              </View>
-                            );
-                          })}
+                                        {/* Mostrar botón siempre - permitir editar predicciones incluso si el partido ya se jugó */}
+                                        {(() => {
+                                          // Debug para último grupo
+                                          if (isLastGroup) {
+                                            console.log('🔘 [BUTTON_RENDER] Último grupo - renderizando botón:', {
+                                              groupLetter,
+                                              matchId: match.matchId,
+                                              isPlayed: match.isPlayed,
+                                              willRender: true,
+                                            });
+                                          }
+                                          return (
+                                            <TouchableOpacity
+                                              style={[
+                                                styles.detailsButton,
+                                                isDetailsButtonDisabled(match) && styles.detailsButtonDisabled
+                                              ]}
+                                              onPress={() => handleOpenPredictionModal(firstGroupId, match)}
+                                              activeOpacity={isDetailsButtonDisabled(match) ? 1 : 0.8}
+                                              disabled={false} // Siempre permitir presionar para mostrar el modal
+                                            >
+                                              <LinearGradient
+                                                colors={isDetailsButtonDisabled(match) ? ['rgba(26, 77, 58, 0.5)', 'rgba(16, 185, 129, 0.3)'] : ['#10B981', '#059669']}
+                                                start={{ x: 0, y: 0 }}
+                                                end={{ x: 1, y: 0 }}
+                                                style={styles.detailsButtonGradient}
+                                              >
+                                                <Ionicons name="create-outline" size={16} color="#FFFFFF" />
+                                                <Text style={styles.detailsButtonText}>
+                                                  {userPrediction ? t('matches.editPrediction') : t('common.details')}
+                                                </Text>
+                                              </LinearGradient>
+                                            </TouchableOpacity>
+                                          );
+                                        })()}
+                                      </View>
+                                    );
+                                  })}
                               </View>
                             </>
                           )}
@@ -2296,36 +2449,33 @@ export default function CompetitionGroupsScreen() {
                                   </View>
                                 </View>
 
-                                {!match.isPlayed && (() => {
-                                  const isDisabled = isDetailsButtonDisabled(match);
-                                  return (
-                                    <TouchableOpacity
-                                      style={[
-                                        styles.detailsButton,
-                                        isDisabled && styles.detailsButtonDisabled
-                                      ]}
-                                      onPress={() => handleOpenPredictionModal(firstGroupId, match)}
-                                      activeOpacity={isDisabled ? 1 : 0.8}
-                                      disabled={false} // Siempre permitir presionar para mostrar el modal
-                                    >
-                                      <LinearGradient
-                                        colors={isDisabled ? ['rgba(26, 77, 58, 0.5)', 'rgba(16, 185, 129, 0.3)'] : ['#10B981', '#059669']}
-                                        start={{ x: 0, y: 0 }}
-                                        end={{ x: 1, y: 0 }}
-                                        style={styles.detailsButtonGradient}
-                                      >
-                                        <Ionicons name="create-outline" size={16} color="#FFFFFF" />
-                                        <Text style={styles.detailsButtonText}>
-                                          {userPrediction ? t('matches.editPrediction') : t('common.details')}
-                                        </Text>
-                                      </LinearGradient>
-                                    </TouchableOpacity>
-                                  );
-                                })()}
+                                        {!match.isPlayed ? (
+                                          <TouchableOpacity
+                                            style={[
+                                              styles.detailsButton,
+                                              isDetailsButtonDisabled(match) && styles.detailsButtonDisabled
+                                            ]}
+                                            onPress={() => handleOpenPredictionModal(firstGroupId, match)}
+                                            activeOpacity={isDetailsButtonDisabled(match) ? 1 : 0.8}
+                                            disabled={false} // Siempre permitir presionar para mostrar el modal
+                                          >
+                                            <LinearGradient
+                                              colors={isDetailsButtonDisabled(match) ? ['rgba(26, 77, 58, 0.5)', 'rgba(16, 185, 129, 0.3)'] : ['#10B981', '#059669']}
+                                              start={{ x: 0, y: 0 }}
+                                              end={{ x: 1, y: 0 }}
+                                              style={styles.detailsButtonGradient}
+                                            >
+                                              <Ionicons name="create-outline" size={16} color="#FFFFFF" />
+                                              <Text style={styles.detailsButtonText}>
+                                                {userPrediction ? t('matches.editPrediction') : t('common.details')}
+                                              </Text>
+                                            </LinearGradient>
+                                          </TouchableOpacity>
+                                        ) : null}
+                                      </View>
+                                    );
+                                  })}
                               </View>
-                            );
-                          })}
-                            </View>
                           )}
                         </View>
                       );
@@ -2548,6 +2698,9 @@ const styles = StyleSheet.create({
     flex: 1,
     position: 'relative',
     zIndex: 10,
+  },
+  scrollViewContent: {
+    paddingBottom: 32, // Padding extra al final para que el último grupo sea completamente visible
   },
   content: {
     padding: 16,
@@ -3487,16 +3640,26 @@ const styles = StyleSheet.create({
     borderBottomColor: '#1A4D3A',
   },
   scoresTableHeaderCellPosition: {
-    width: 40,
+    width: 45,
     alignItems: 'center',
+    justifyContent: 'center',
   },
   scoresTableHeaderCellName: {
     flex: 1,
-    paddingLeft: 12,
+    paddingLeft: 8,
+    paddingRight: 4,
+    justifyContent: 'center',
   },
   scoresTableHeaderCellScore: {
-    width: 70,
+    width: 80,
     alignItems: 'flex-end',
+    justifyContent: 'center',
+    paddingRight: 8,
+  },
+  scoresTableHeaderCellDetails: {
+    width: 50,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   scoresTableHeaderText: {
     fontSize: 12,
@@ -3504,13 +3667,21 @@ const styles = StyleSheet.create({
     color: '#1A4D3A',
     textTransform: 'uppercase',
   },
+  scoresTableHeaderTextDetail: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#1A4D3A',
+    textTransform: 'uppercase',
+  },
   scoresTableRow: {
     flexDirection: 'row',
-    paddingVertical: 12,
+    paddingVertical: 14,
     paddingHorizontal: 8,
     borderBottomWidth: 1,
     borderBottomColor: 'rgba(26, 77, 58, 0.1)',
     backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    minHeight: 56,
   },
   scoresTableRowCurrentUser: {
     backgroundColor: 'rgba(16, 185, 129, 0.1)',
@@ -3521,63 +3692,90 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255, 215, 0, 0.1)',
   },
   scoresTableCellPosition: {
-    width: 40,
+    width: 45,
     alignItems: 'center',
     justifyContent: 'center',
   },
   scoresTablePositionText: {
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: '600',
     color: '#6B7280',
   },
   scoresTableCellName: {
     flex: 1,
-    paddingLeft: 12,
+    paddingLeft: 8,
+    paddingRight: 4,
+    justifyContent: 'center',
+  },
+  scoresTableNameContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 6,
+    flexWrap: 'wrap',
   },
   scoresTableNameText: {
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: '600',
     color: '#1A4D3A',
-    flex: 1,
+    flexShrink: 1,
+    flexGrow: 0,
   },
   scoresTableNameTextCurrentUser: {
     fontWeight: '700',
     color: '#10B981',
   },
   scoresTableCreatorBadge: {
-    backgroundColor: 'rgba(26, 77, 58, 0.1)',
+    backgroundColor: 'rgba(26, 77, 58, 0.12)',
     paddingHorizontal: 6,
-    paddingVertical: 2,
+    paddingVertical: 3,
     borderRadius: 4,
+    flexShrink: 0,
   },
   scoresTableCreatorBadgeText: {
-    fontSize: 10,
-    fontWeight: '600',
+    fontSize: 9,
+    fontWeight: '700',
     color: '#1A4D3A',
     textTransform: 'uppercase',
+    letterSpacing: 0.3,
   },
   scoresTableCellScore: {
-    width: 70,
+    width: 80,
     alignItems: 'flex-end',
     justifyContent: 'center',
-    gap: 2,
+    paddingRight: 8,
+  },
+  scoresTableScoreContainer: {
+    alignItems: 'flex-end',
+    justifyContent: 'center',
+  },
+  scoresTableCellDetails: {
+    width: 50,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  userDetailsButton: {
+    width: 36,
+    height: 36,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: 18,
+    backgroundColor: 'rgba(26, 77, 58, 0.1)',
   },
   scoresTableScoreText: {
-    fontSize: 16,
+    fontSize: 17,
     fontWeight: '700',
     color: '#10B981',
+    lineHeight: 20,
   },
   scoresTableScoreTextCurrentUser: {
     color: '#059669',
-    fontSize: 18,
+    fontSize: 19,
   },
   scoresTableScoreLabel: {
     fontSize: 10,
     fontWeight: '500',
     color: '#6B7280',
+    marginTop: 1,
   },
   scoresTableEmpty: {
     padding: 32,
